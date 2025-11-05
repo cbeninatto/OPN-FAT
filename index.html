@@ -394,22 +394,30 @@ let SHARE_MODE = 'valor'; // or 'quantidade'
 
 /* ---------------------- Normalization & aggregation ---------------------- */
 function normalizeRows(rows){
-  const out=[];
+  const out = [];
   rows.forEach(o=>{
-    const ano = Number(o.Ano);
-    const mes = Number(o.Mes);
-    if(!Number.isFinite(ano)||!Number.isFinite(mes)) return;
+    // Clean possible hidden chars and enforce numeric year/month
+    const anoStr = (o.Ano||o.ano||o.ANO||"").toString().replace(/[^\d]/g,"").trim();
+    const mesStr = (o.Mes||o.mes||o.MES||"").toString().replace(/[^\d]/g,"").trim();
+    const ano = Number(anoStr);
+    const mes = Number(mesStr);
+
+    // Skip invalid or nonsensical values
+    if(!Number.isFinite(ano) || !Number.isFinite(mes) || mes < 1 || mes > 12) return;
+
     out.push({
       Codigo: (o.Codigo||"").toString().trim(),
       Descricao: (o.Descricao||"").toString().trim(),
-      Quantidade: Number(o.Quantidade)||0,
-      Valor: Number(o.Valor)||0,
-      Mes: mes, Ano: ano,
-      Data: new Date(ano, mes-1, 1),
+      Quantidade: Number(o.Quantidade) || 0,
+      Valor: Number(o.Valor) || 0,
+      Mes: mes,
+      Ano: ano,
+      Data: new Date(ano, mes - 1, 1),
       Categoria: mapCategoria(o.Descricao)
     });
   });
-  // strict numeric chronological sort
+
+  // Strict chronological sort by year then month
   out.sort((a,b)=> (a.Ano - b.Ano) || (a.Mes - b.Mes));
   return out;
 }
