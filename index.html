@@ -406,35 +406,76 @@ function buildCategoryCards(containerId){
 }
 
 /* Drawers */
-function drawTotal(){
-  const x = MONTHLY.map(r=>r.Data.toISOString().slice(0,10));
-  const {tickvals,ticktext} = evenMonthTicksWithYear(x);
+function drawTotal() {
+  const x = MONTHLY.map(r => r.Data.toISOString().slice(0, 10));
+  const { tickvals, ticktext } = evenMonthTicksWithYear(x);
 
+  // Bar trace — Valor
   const barsValor = {
-    x, y: MONTHLY.map(r=>r.Valor), ...barCfg("var(--red)"),
-    name:"Valor (R$)", hovertemplate:"<b>%{x}</b><br>Valor: %{customdata.v}<extra></extra>",
-    customdata: MONTHLY.map(r=>({v:fmtBRL(r.Valor)})), yaxis:"y"
+    x,
+    y: MONTHLY.map(r => r.Valor),
+    type: 'bar',
+    marker: { color: 'var(--red)', opacity: 0.75 },
+    name: 'Valor (R$)',
+    yaxis: 'y',
+    hovertemplate:
+      "<b>%{x}</b><br>Valor: %{customdata.v}<extra></extra>",
+    customdata: MONTHLY.map(r => ({ v: fmtBRL(r.Valor) }))
   };
+
+  // Line trace — Quantidade
   const lineQtd = {
-    x, y: MONTHLY.map(r=>r.Quantidade), ...lineCfg("var(--blue)"),
-    name:"Quantidade (un.)",
-    hovertemplate:"<b>%{x}</b><br>Quantidade: %{customdata.q}<extra></extra>",
-    customdata: MONTHLY.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')})), yaxis:"y2"
+    x,
+    y: MONTHLY.map(r => r.Quantidade),
+    mode: 'lines+markers',
+    line: { shape: 'spline', width: 3, color: 'var(--blue)' },
+    marker: { size: 6, line: { width: 1, color: '#fff' } },
+    name: 'Quantidade (un.)',
+    yaxis: 'y2',
+    hovertemplate:
+      "<b>%{x}</b><br>Quantidade: %{customdata.q}<extra></extra>",
+    customdata: MONTHLY.map(r => ({
+      q: Math.round(r.Quantidade).toLocaleString('pt-BR')
+    }))
   };
 
-  Plotly.newPlot("chart-total",[barsValor, lineQtd],
-    baseLayout({tickvals,ticktext},"Valor (R$)","Quantidade (un.)"),
-    {responsive:true}
-  );
+  // Layout
+  const layout = {
+    hovermode: 'x unified',
+    legend: { orientation: 'h', y: -0.25 },
+    xaxis: {
+      showgrid: false,
+      tickmode: 'array',
+      tickvals,
+      ticktext,
+      automargin: true
+    },
+    yaxis: {
+      title: 'Valor (R$)',
+      gridcolor: '#e9ecef',
+      zeroline: false,
+      automargin: true
+    },
+    yaxis2: {
+      title: 'Quantidade (un.)',
+      overlaying: 'y',
+      side: 'right',
+      automargin: true
+    },
+    paper_bgcolor: '#fff',
+    plot_bgcolor: '#fff',
+    margin: { t: 20, r: 40, b: 80, l: 60 }
+  };
 
-  // default range
-  quick("chart-total","TUDO");
+  Plotly.newPlot('chart-total', [barsValor, lineQtd], layout, { responsive: true });
 
-  // metrics (Valor)
-  const m = computeMetrics(MONTHLY, "Valor");
-  document.getElementById("var-total").textContent = m.varTotal;
-  document.getElementById("med-total").textContent = m.medMensal;
-  document.getElementById("vol-total").textContent = m.vol;
+  quick('chart-total', 'TUDO'); // default full range
+
+  // Metrics for Valor only
+  const m = computeMetrics(MONTHLY, 'Valor');
+  document.getElementById('var-total').textContent = m.varTotal;
+  document.getElementById('med-total').textContent = m.medMensal;
+  document.getElementById('vol-total').textContent = m.vol;
 }
 function drawCat(){
   // Build traces for each fixed category (Valor),
