@@ -407,10 +407,29 @@ function buildCategoryCards(containerId){
 
 /* Drawers */
 function drawTotal() {
-  const x = MONTHLY.map(r => r.Data.toISOString().slice(0, 10));
-  const { tickvals, ticktext } = evenMonthTicksWithYear(x);
+  if (!MONTHLY.length) return;
 
-  // Bar trace — Valor
+  // Ensure chronological order
+  MONTHLY.sort((a, b) => a.Data - b.Data);
+
+  // Extract date array
+  const x = MONTHLY.map(r => r.Data.toISOString().slice(0, 10));
+
+  // Define range bounds (first and last date in dataset)
+  const minDate = MONTHLY[0].Data;
+  const maxDate = MONTHLY[MONTHLY.length - 1].Data;
+
+  // Generate ticks only within valid range (every 2nd month)
+  const tickvals = [], ticktext = [];
+  for (let i = 0; i < MONTHLY.length; i++) {
+    const dt = MONTHLY[i].Data;
+    if (dt.getMonth() % 2 === 1) { // FEB, APR, JUN, etc.
+      tickvals.push(dt.toISOString().slice(0, 10));
+      ticktext.push(PT_ABBR[dt.getMonth()] + " " + String(dt.getFullYear()).slice(-2));
+    }
+  }
+
+  // --- Bar Trace (Valor) ---
   const barsValor = {
     x,
     y: MONTHLY.map(r => r.Valor),
@@ -423,12 +442,12 @@ function drawTotal() {
     customdata: MONTHLY.map(r => ({ v: fmtBRL(r.Valor) }))
   };
 
-  // Line trace — Quantidade
+  // --- Line Trace (Quantidade) ---
   const lineQtd = {
     x,
     y: MONTHLY.map(r => r.Quantidade),
     mode: 'lines+markers',
-    line: { shape: 'spline', width: 3, color: 'var(--blue)' },
+    line: { shape: 'spline', width: 3, color: 'var(--blue)', smoothing: 0.6 },
     marker: { size: 6, line: { width: 1, color: '#fff' } },
     name: 'Quantidade (un.)',
     yaxis: 'y2',
@@ -439,27 +458,31 @@ function drawTotal() {
     }))
   };
 
-  // Layout
+  // --- Layout ---
   const layout = {
     hovermode: 'x unified',
-    legend: { orientation: 'h', y: -0.25 },
+    legend: { orientation: 'h', y: -0.25, font: { size: isMobile() ? 11 : 12 } },
     xaxis: {
       showgrid: false,
       tickmode: 'array',
       tickvals,
       ticktext,
+      range: [minDate, maxDate],  // ✅ limit range strictly
+      tickfont: { size: isMobile() ? 10 : 12 },
       automargin: true
     },
     yaxis: {
       title: 'Valor (R$)',
       gridcolor: '#e9ecef',
       zeroline: false,
+      tickfont: { size: isMobile() ? 10 : 12 },
       automargin: true
     },
     yaxis2: {
       title: 'Quantidade (un.)',
       overlaying: 'y',
       side: 'right',
+      tickfont: { size: isMobile() ? 10 : 12 },
       automargin: true
     },
     paper_bgcolor: '#fff',
@@ -467,11 +490,13 @@ function drawTotal() {
     margin: { t: 20, r: 40, b: 80, l: 60 }
   };
 
+  // --- Render ---
   Plotly.newPlot('chart-total', [barsValor, lineQtd], layout, { responsive: true });
 
-  quick('chart-total', 'TUDO'); // default full range
+  // Default zoom: all months
+  Plotly.relayout('chart-total', { 'xaxis.range': [minDate, maxDate] });
 
-  // Metrics for Valor only
+  // --- Metrics (Valor only for now) ---
   const m = computeMetrics(MONTHLY, 'Valor');
   document.getElementById('var-total').textContent = m.varTotal;
   document.getElementById('med-total').textContent = m.medMensal;
