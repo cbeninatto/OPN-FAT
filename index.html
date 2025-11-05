@@ -292,120 +292,48 @@ function loadCSV(){
     });
   });
 }
-function normalizeRows(rows){
-  const out=[];
-  rows.forEach(o=>{
-    const ano = parseInt(o.Ano||o.ano||o.ANO||"",10);
-    const mes = parseInt(o.Mes||o.mes||o.MES||"",10);
-    if(!Number.isFinite(ano)||!Number.isFinite(mes)) return;
-    const Data = new Date(ano, mes-1, 1);
+/* ---------------------- NORMALIZATION ---------------------- */
+function normalizeRows(rows) {
+  const out = [];
+  rows.forEach(o => {
+    const ano = parseInt(o.Ano || o.ano || o.ANO || "", 10);
+    const mes = parseInt(o.Mes || o.mes || o.MES || "", 10);
+    if (!Number.isFinite(ano) || !Number.isFinite(mes)) return;
+
+    // Force numeric conversion for both fields
+    const qtd = Number(o.Quantidade) || 0;
+    const val = Number(o.Valor) || 0;
+
     out.push({
-      Codigo: (o.Codigo||"").toString().trim(),
-      Descricao: (o.Descricao||"").toString().trim(),
-      Quantidade: brToFloat(o.Quantidade),
-      Valor: brToFloat(o.Valor),
-      Mes: mes, Ano: ano,
-      Data,
+      Codigo: (o.Codigo || "").toString().trim(),
+      Descricao: (o.Descricao || "").toString().trim(),
+      Quantidade: qtd,
+      Valor: val,
+      Mes: mes,
+      Ano: ano,
+      Data: new Date(ano, mes - 1, 1),
       Categoria: mapCategoria(o.Descricao)
     });
   });
-  out.sort((a,b)=>a.Data-b.Data);
+  out.sort((a, b) => a.Data - b.Data);
   return out;
 }
-function aggMonthly(rows){
-  const map = new Map(); // key=YYYY-MM
-  rows.forEach(r=>{
-    const key = `${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
-    if(!map.has(key)) map.set(key,{Data:new Date(r.Ano,r.Mes-1,1), Valor:0, Quantidade:0});
+
+/* ---------------------- MONTHLY AGGREGATION ---------------------- */
+function aggMonthly(rows) {
+  const map = new Map(); // key = YYYY-MM
+  rows.forEach(r => {
+    const key = `${r.Ano}-${String(r.Mes).padStart(2, "0")}`;
+    if (!map.has(key))
+      map.set(key, { Data: new Date(r.Ano, r.Mes - 1, 1), Valor: 0, Quantidade: 0 });
     const m = map.get(key);
-    m.Valor += r.Valor;
-    m.Quantidade += r.Quantidade;
+    m.Valor += Number(r.Valor) || 0;
+    m.Quantidade += Number(r.Quantidade) || 0;
   });
-  const arr = Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
-  return arr;
-}
-function aggMonthlyByCategory(rows){
-  const cats = new Set();
-  const map = {}; // cat -> [{Data, Valor, Quantidade}]
-  rows.forEach(r=>{
-    cats.add(r.Categoria);
-    const key = r.Categoria;
-    if(!map[key]) map[key] = {};
-    const mkey = `${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
-    if(!map[key][mkey]) map[key][mkey] = {Data:new Date(r.Ano,r.Mes-1,1), Valor:0, Quantidade:0};
-    map[key][mkey].Valor += r.Valor;
-    map[key][mkey].Quantidade += r.Quantidade;
-  });
-  const obj = {};
-  Array.from(cats).forEach(c=>{
-    obj[c] = Object.values(map[c]).sort((a,b)=>a.Data-b.Data);
-  });
-  return {cats:Array.from(cats), data:obj};
+  return Array.from(map.values()).sort((a, b) => a.Data - b.Data);
 }
 
-/* Build per-category cards */
-function buildCategoryCards(containerId){
-  const container = document.getElementById(containerId);
-  const order = CAT_ORDER;
-  container.innerHTML = order.map(cat=>{
-    const safe = cat.replace(/\s+/g,'-').toLowerCase();
-    return `
-      <div class="section">
-        <div class="titlebar collapsible" data-target="card-${safe}">
-          <span>${cat}</span><span class="caret">▶</span>
-        </div>
-        <div id="card-${safe}" class="card-wrap" style="max-height:0">
-          <div class="card">
-            <div class="rangebar" id="range-${safe}">
-              <button class="rbtn" data-target="chart-${safe}" data-range="3M">3M</button>
-              <button class="rbtn" data-target="chart-${safe}" data-range="6M">6M</button>
-              <button class="rbtn" data-target="chart-${safe}" data-range="1A">1A</button>
-              <button class="rbtn" data-target="chart-${safe}" data-range="5A">5A</button>
-              <button class="rbtn active" data-target="chart-${safe}" data-range="TUDO">Tudo</button>
-              <span style="margin-left:8px;">De</span>
-              <input type="month" id="from-${safe}"/>
-              <span>até</span>
-              <input type="month" id="to-${safe}"/>
-              <button class="rbtn" onclick="applyCustom('chart-${safe}','from-${safe}','to-${safe}')">Aplicar</button>
-              <button class="rbtn" onclick="resetRange('chart-${safe}')">Reset</button>
-            </div>
-            <div class="metrics">
-              <div class="metric"><div class="k">Variação total</div><div class="v" id="var-${safe}">—</div></div>
-              <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-${safe}">—</div></div>
-              <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-${safe}">—</div></div>
-            </div>
-            <div class="chart" id="chart-${safe}"></div>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  // wire collapsibles inside container
-  container.querySelectorAll('.titlebar.collapsible').forEach(tb=>{
-    tb.addEventListener('click', ()=>{
-      const id = tb.getAttribute('data-target');
-      const wrap = document.getElementById(id);
-      const open = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
-      wrap.style.maxHeight = open ? '2000px' : '0';
-      const caret = tb.querySelector('.caret');
-      if (caret) caret.textContent = open ? '▼' : '▶';
-      if (open){
-        const chartId = id.replace('card-','chart-');
-        drawCategory(chartId);
-        tb.scrollIntoView({behavior:'smooth', block:'start'});
-      }
-    });
-  });
-
-  // wire ranges
-  order.forEach(cat=>{
-    const safe = cat.replace(/\s+/g,'-').toLowerCase();
-    wireRangeBar(`range-${safe}`);
-  });
-}
-
-/* Drawers */
+/* ---------------------- VISÃO GERAL ---------------------- */
 function drawTotal() {
   if (!MONTHLY.length) return;
 
@@ -439,7 +367,13 @@ function drawTotal() {
     yaxis: 'y',
     hovertemplate:
       "<b>%{x}</b><br>Valor: %{customdata.v}<extra></extra>",
-    customdata: MONTHLY.map(r => ({ v: fmtBRL(r.Valor) }))
+    customdata: MONTHLY.map(r => ({
+      v: new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        minimumFractionDigits: 2
+      }).format(r.Valor)
+    }))
   };
 
   // --- Line Trace (Quantidade) ---
@@ -452,9 +386,9 @@ function drawTotal() {
     name: 'Quantidade (un.)',
     yaxis: 'y2',
     hovertemplate:
-      "<b>%{x}</b><br>Quantidade: %{customdata.q}<extra></extra>",
+      "<b>%{x}</b><br>Quantidade: %{customdata.q} un<extra></extra>",
     customdata: MONTHLY.map(r => ({
-      q: Math.round(r.Quantidade).toLocaleString('pt-BR')
+      q: new Intl.NumberFormat("pt-BR").format(r.Quantidade)
     }))
   };
 
@@ -467,7 +401,7 @@ function drawTotal() {
       tickmode: 'array',
       tickvals,
       ticktext,
-      range: [minDate, maxDate],  // ✅ limit range strictly
+      range: [minDate, maxDate],
       tickfont: { size: isMobile() ? 10 : 12 },
       automargin: true
     },
