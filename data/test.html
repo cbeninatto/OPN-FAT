@@ -21,8 +21,9 @@ const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV"
 function normalizeRows(rows){
   const out=[];
   rows.forEach(o=>{
-    const ano=Number(String(o.Ano||"").trim());
-    const mes=Number(String(o.Mes||"").trim());
+    if(!o || !o.Ano || !o.Mes) return; // skip blank lines
+    const ano=Number(String(o.Ano).trim());
+    const mes=Number(String(o.Mes).trim());
     if(!Number.isFinite(ano)||!Number.isFinite(mes)||mes<1||mes>12) return;
     out.push({
       Ano:ano,Mes:mes,
@@ -60,27 +61,40 @@ async function init(){
   const text=await res.text();
   const parsed=Papa.parse(text,{header:true,skipEmptyLines:true});
   const rows=normalizeRows(parsed.data);
+  console.log(`✅ Loaded ${rows.length} valid rows`);
+  if(!rows.length){alert("Nenhum dado válido encontrado.");return;}
+
   const monthly=aggMonthly(rows);
-  console.log("Min year:",Math.min(...rows.map(r=>r.Ano)),"Max year:",Math.max(...rows.map(r=>r.Ano)));
-  console.table(monthly.map(m=>({Data:m.Data.toISOString().slice(0,10),Valor:m.Valor,Quantidade:m.Quantidade})));
+  console.table(monthly.map(m=>({
+    Data:m.Data.toISOString().slice(0,10),
+    Valor:m.Valor,
+    Quantidade:m.Quantidade
+  })));
 
   const x=monthly.map(r=>r.Data.toISOString().slice(0,10));
   const tickvals=x;
   const ticktext=x.map(d=>{
-    const dt=new Date(d);return PT_ABBR[dt.getMonth()]+" "+String(dt.getFullYear()).slice(-2);
+    const dt=new Date(d);
+    return PT_ABBR[dt.getMonth()]+" "+String(dt.getFullYear()).slice(-2);
   });
 
   const barsQtd={
-    x,y:monthly.map(r=>r.Quantidade),type:'bar',marker:{color:'#fb8c00'},name:'Quantidade (un.)',
+    x,y:monthly.map(r=>r.Quantidade),
+    type:'bar',
+    marker:{color:'#fb8c00'},
+    name:'Quantidade (un.)',
     yaxis:'y2',
     hovertemplate:"<b>Quantidade:</b> %{customdata.q}<extra></extra>",
     customdata:monthly.map(r=>({q:Math.round(r.Quantidade).toLocaleString('pt-BR')}))
   };
+
   const lineVal={
-    x,y:monthly.map(r=>r.Valor),mode:'lines+markers',
+    x,y:monthly.map(r=>r.Valor),
+    mode:'lines+markers',
     line:{shape:'spline',color:'#43a047',width:3},
     marker:{size:6,line:{width:1,color:'#fff'}},
-    name:'Valor (R$)',yaxis:'y',
+    name:'Valor (R$)',
+    yaxis:'y',
     hovertemplate:"<b>Valor:</b> %{customdata.v}<extra></extra>",
     customdata:monthly.map(r=>({v:fmtBRL(r.Valor)}))
   };
