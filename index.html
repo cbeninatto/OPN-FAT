@@ -1,4 +1,4 @@
-<!-- v4.9 | Based on Índices Moveleiro Dashboard v4.9.2 | © Cesar Beninatto -->
+<!-- v5.0.1 | Based on Índices Moveleiro Dashboard v4.9.2 | © Cesar Beninatto -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -64,7 +64,7 @@
 <body>
 <div class="wrap">
   <div class="topbar">
-    <div class="tleft">OPENFIELD MOVELEIRO PERFORMANCE — v4.9</div>
+    <div class="tleft">OPENFIELD MOVELEIRO PERFORMANCE — v5.0.1</div>
     <div class="tright">
       <span id="updated" style="color:#fff;opacity:.9">Atualizado: —</span>
       <button class="rbtn export">Exportar PDF</button>
@@ -100,161 +100,563 @@
       </div>
     </div>
   </div>
+
+  <!-- Faturamento por Categoria -->
+  <div class="section">
+    <div class="titlebar collapsible" data-target="card-cat"><span>💰 Faturamento por Categoria (Linhas)</span><span class="caret">▼</span></div>
+    <div id="card-cat" class="card-wrap" style="max-height:0">
+      <div class="card">
+        <div class="rangebar" id="range-cat">
+          <button class="rbtn" data-target="chart-cat" data-range="3M">3M</button>
+          <button class="rbtn" data-target="chart-cat" data-range="6M">6M</button>
+          <button class="rbtn" data-target="chart-cat" data-range="1A">1A</button>
+          <button class="rbtn" data-target="chart-cat" data-range="5A">5A</button>
+          <button class="rbtn active" data-target="chart-cat" data-range="TUDO">Tudo</button>
+          <span style="margin-left:8px;">De</span>
+          <input type="month" id="from-cat"/>
+          <span>até</span>
+          <input type="month" id="to-cat"/>
+          <button class="rbtn" onclick="applyCustom('chart-cat','from-cat','to-cat')">Aplicar</button>
+          <button class="rbtn" onclick="resetRange('chart-cat')">Reset</button>
+        </div>
+
+        <div class="metrics" id="metrics-cat">
+          <div class="metric"><div class="k">Variação total</div><div class="v" id="var-cat">—</div></div>
+          <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-cat">—</div></div>
+          <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-cat">—</div></div>
+        </div>
+
+        <div class="chart" id="chart-cat"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desempenho por Categoria -->
+  <div class="section">
+    <div class="titlebar collapsible" data-target="card-cats"><span>📈 Desempenho por Categoria</span><span class="caret">▼</span></div>
+    <div id="card-cats" class="card-wrap" style="max-height:0">
+      <div class="card" id="cats-container">
+        <!-- Cards por categoria serão injetados aqui -->
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
+/* ---------------------- Constants & Helpers ---------------------- */
 const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
-function endOfMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0);}
-function startOfMonth(d){return new Date(d.getFullYear(),d.getMonth(),1);}
-function addMonths(d,m){return new Date(d.getFullYear(),d.getMonth()+m,1);}
-function ymToDate(s){if(!s)return null;const p=s.split("-");if(p.length!==2)return null;return new Date(parseInt(p[0]),parseInt(p[1])-1,1);}
-const isMobile=()=>window.innerWidth<720;
+const isMobile = () => window.innerWidth < 720;
+const COLORS = {
+  "Corrediça Oculta":"var(--red)",
+  "Corrediça Telescópica":"var(--orange)",
+  "Dobradiças":"var(--purple)",
+  "Articuladores":"var(--green)",
+  "Rodízio":"var(--teal)",
+  "Pulsadores":"var(--blue)"
+};
+function labelMonth(dt){ return PT_ABBR[dt.getMonth()]+" "+String(dt.getFullYear()).slice(-2); }
+function fmtBRL(n){ return "R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtQTD(n){ return Number(n).toLocaleString("pt-BR"); }
+function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function addMonths(d,m){ return new Date(d.getFullYear(), d.getMonth()+m, 1); }
+function ymToDate(s){ if(!s) return null; const p=s.split("-"); if(p.length!==2) return null; return new Date(parseInt(p[0]), parseInt(p[1])-1, 1); }
 
-/* Range controls */
-let DATA_MIN=null,DATA_MAX=null;
-function applyRangeTo(divId,start,end){const gd=document.getElementById(divId);if(!gd)return;Plotly.relayout(gd,{'xaxis.range':[start,end]});}
-function quick(divId,key){
- let start,end=endOfMonth(DATA_MAX);
- if(key==='3M')start=startOfMonth(addMonths(DATA_MAX,-2));
- else if(key==='6M')start=startOfMonth(addMonths(DATA_MAX,-5));
- else if(key==='1A')start=startOfMonth(addMonths(DATA_MAX,-11));
- else if(key==='5A')start=startOfMonth(addMonths(DATA_MAX,-59));
- else if(key==='TUDO'){start=startOfMonth(DATA_MIN);end=endOfMonth(DATA_MAX);}
- else start=startOfMonth(addMonths(DATA_MAX,-11));
- applyRangeTo(divId,start,end);
+/* Categoria mapping via Descricao */
+function mapCategoria(descRaw){
+  const d = (descRaw||"").toUpperCase();
+  if (d.includes("ESCOND") || d.includes("SLIM MV119")) return "Corrediça Oculta";
+  if (d.includes("TRILHO") && (d.includes("NORMAL") || d.includes("TELE") || d.includes("TEL"))) return "Corrediça Telescópica";
+  if (d.includes("DOBRAD")) return "Dobradiças";
+  if (d.includes("PIST") || d.includes("ARTICUL")) return "Articuladores";
+  if (d.includes("RODIZ")) return "Rodízio";
+  if (d.includes("PULSADOR") || d.includes("TIP-ON") || d.includes("TIP ON")) return "Pulsadores";
+  return "Acessórios";
 }
-function applyCustom(divId,fromId,toId){
- const f=document.getElementById(fromId).value,t=document.getElementById(toId).value;
- const d1=ymToDate(f),d2=ymToDate(t);
- if(!d1||!d2){alert('Selecione mês/ano inicial e final.');return;}
- applyRangeTo(divId,startOfMonth(d1),endOfMonth(d2));
+
+/* Collapsibles */
+document.addEventListener('click', (e)=>{
+  const tb = e.target.closest('.titlebar.collapsible');
+  if(!tb) return;
+  const id = tb.getAttribute('data-target');
+  const wrap = document.getElementById(id);
+  if(!wrap) return;
+  const open = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
+  wrap.style.maxHeight = open ? '2000px' : '0';
+  const caret = tb.querySelector('.caret');
+  if (caret) caret.textContent = open ? '▼' : '▶';
+});
+
+/* Range Controls (category x-axis) */
+function applyRangeLabels(divId, labels, startIdx, endIdx){
+  const gd = document.getElementById(divId);
+  if(!gd) return;
+  const s = Math.max(0, startIdx);
+  const e = Math.min(labels.length-1, endIdx);
+  Plotly.relayout(gd, { 'xaxis.range': [labels[s], labels[e]] });
 }
-function resetRange(divId){quick(divId,'1A');}
+function quickRange(divId, labels, key){
+  const L = labels.length;
+  let start = 0, end = L-1;
+  if (key==='3M'){ start = Math.max(0, L-3); }
+  else if (key==='6M'){ start = Math.max(0, L-6); }
+  else if (key==='1A'){ start = Math.max(0, L-12); }
+  else if (key==='5A'){ start = Math.max(0, L-60); }
+  else if (key==='TUDO'){ start = 0; }
+  applyRangeLabels(divId, labels, start, end);
+  updateMetricsFromView(divId, labels);
+}
+function applyCustom(divId, fromId, toId){
+  const f = document.getElementById(fromId).value;
+  const t = document.getElementById(toId).value;
+  if(!f || !t){ alert('Selecione mês/ano inicial e final.'); return; }
+  const d1 = ymToDate(f), d2 = ymToDate(t);
+  if(!d1 || !d2){ alert('Datas inválidas.'); return; }
+  const sLab = labelMonth(d1), eLab = labelMonth(d2);
+  const labels = X_LABELS_BY_DIV[divId] || [];
+  const sIdx = labels.indexOf(sLab), eIdx = labels.indexOf(eLab);
+  if (sIdx<0 || eIdx<0){ alert('Período fora do intervalo dos dados.'); return; }
+  applyRangeLabels(divId, labels, Math.min(sIdx,eIdx), Math.max(sIdx,eIdx));
+  updateMetricsFromView(divId, labels);
+}
+function resetRange(divId){
+  const labels = X_LABELS_BY_DIV[divId] || [];
+  if(!labels.length) return;
+  applyRangeLabels(divId, labels, Math.max(0, labels.length-12), labels.length-1);
+  updateMetricsFromView(divId, labels);
+}
 function wireRangeBar(barId){
- const bar=document.getElementById(barId);if(!bar)return;
- bar.querySelectorAll('.rbtn[data-range]').forEach(btn=>{
-   btn.addEventListener('click',()=>{
-     bar.querySelectorAll('.rbtn[data-range]').forEach(x=>x.classList.remove('active'));
-     btn.classList.add('active');
-     quick(btn.dataset.target,btn.dataset.range);
-   });
- });
+  const bar = document.getElementById(barId);
+  if(!bar) return;
+  bar.querySelectorAll('.rbtn[data-range]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      bar.querySelectorAll('.rbtn[data-range]').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      const divId = btn.dataset.target;
+      const labels = X_LABELS_BY_DIV[divId] || [];
+      quickRange(divId, labels, btn.dataset.range);
+    });
+  });
 }
 
 /* Metrics */
-function computeMetrics(rows,key='Valor'){
- if(!rows.length)return{varTotal:"—",medMensal:"—",vol:"—"};
- const vals=rows.map(r=>r[key]||0);
- if(vals.length<2)return{varTotal:"—",medMensal:fmtBRL(vals[0]||0),vol:"—"};
- const first=vals[0],last=vals[vals.length-1];
- const varTotal=(first===0)?0:((last-first)/Math.abs(first))*100;
- const diffs=[];for(let i=1;i<vals.length;i++)diffs.push((vals[i-1]===0)?0:((vals[i]-vals[i-1])/Math.abs(vals[i-1])*100));
- const vol=diffs.length?(diffs.reduce((a,b)=>a+Math.abs(b),0)/diffs.length):0;
- const medMensal=(vals.reduce((a,b)=>a+b,0)/vals.length);
- return{varTotal:(varTotal).toFixed(1).replace(".",",")+" %",medMensal:fmtBRL(medMensal),vol:vol.toFixed(1).replace(".",",")+" %"};
+function computeMetrics(rows, key='Valor'){
+  if(!rows.length) return {varTotal:"—", medMensal:"—", vol:"—"};
+  const vals = rows.map(r=>r[key]||0);
+  if (vals.length<2) {
+    const single = key==='Valor' ? fmtBRL(vals[0]||0) : fmtQTD(vals[0]||0);
+    return {varTotal:"—", medMensal: single, vol:"—"};
+  }
+  const first = vals[0], last = vals[vals.length-1];
+  const varTotal = (first===0)? 0 : ((last-first)/Math.abs(first))*100;
+  const diffs = [];
+  for(let i=1;i<vals.length;i++){
+    const prev = vals[i-1];
+    diffs.push(prev===0?0:((vals[i]-prev)/Math.abs(prev))*100);
+  }
+  const vol = diffs.length ? (diffs.reduce((a,b)=>a+Math.abs(b),0)/diffs.length) : 0;
+  const medMensal = (vals.reduce((a,b)=>a+b,0)/vals.length);
+  return {
+    varTotal: (varTotal).toFixed(1).replace(".",",")+" %",
+    medMensal: key==='Valor' ? fmtBRL(medMensal) : fmtQTD(Math.round(medMensal)),
+    vol: vol.toFixed(1).replace(".",",")+" %"
+  };
 }
-function fmtBRL(n){return "R$ "+n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function sliceByLabels(fullRows, labels, sLab, eLab){
+  const sIdx = labels.indexOf(sLab), eIdx = labels.indexOf(eLab);
+  if (sIdx<0 || eIdx<0) return [];
+  const s = Math.min(sIdx, eIdx), e = Math.max(sIdx, eIdx);
+  return fullRows.slice(s, e+1);
+}
 
-/* ---------------- NORMALIZE + AGGREGATE ---------------- */
+/* ---------------------- Data Load & Prep ---------------------- */
+let RAW_ROWS=[], MONTHLY=[], MONTHLY_LABELS=[];
+let MONTHLY_BY_CAT={}, CATS=[], CAT_ORDER=[];
+const X_LABELS_BY_DIV = {}; // divId -> labels array used in that chart
+
 function normalizeRows(rows){
- const out=[];
- rows.forEach(o=>{
-   const ano=parseInt(o.Ano||"",10);
-   const mes=parseInt(o.Mes||"",10);
-   if(!Number.isFinite(ano)||!Number.isFinite(mes))return;
-   out.push({
-     Codigo:(o.Codigo||"").trim(),
-     Descricao:(o.Descricao||"").trim(),
-     Quantidade:Number(o.Quantidade)||0,
-     Valor:Number(o.Valor)||0,
-     Mes:mes,Ano:ano,Data:new Date(ano,mes-1,1)
-   });
- });
- out.sort((a,b)=>a.Data-b.Data);
- return out;
+  const out=[];
+  rows.forEach(o=>{
+    const ano = Number(o.Ano), mes = Number(o.Mes);
+    if(!Number.isFinite(ano) || !Number.isFinite(mes)) return;
+    out.push({
+      Codigo: (o.Codigo||"").toString().trim(),
+      Descricao: (o.Descricao||"").toString().trim(),
+      Quantidade: Number(o.Quantidade)||0,
+      Valor: Number(o.Valor)||0,
+      Mes: mes, Ano: ano,
+      Data: new Date(ano, mes-1, 1),
+      Categoria: mapCategoria(o.Descricao)
+    });
+  });
+  out.sort((a,b)=>a.Data-b.Data);
+  return out;
 }
 function aggMonthly(rows){
- const map=new Map();
- rows.forEach(r=>{
-   const key=`${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
-   if(!map.has(key))map.set(key,{Data:new Date(r.Ano,r.Mes-1,1),Valor:0,Quantidade:0});
-   const m=map.get(key);
-   m.Valor+=Number(r.Valor)||0;
-   m.Quantidade+=Number(r.Quantidade)||0;
- });
- return Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
+  const map=new Map(); // key=YYYY-MM
+  rows.forEach(r=>{
+    const key = `${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
+    if(!map.has(key)) map.set(key,{Data:new Date(r.Ano,r.Mes-1,1), Valor:0, Quantidade:0});
+    const m = map.get(key);
+    m.Valor += Number(r.Valor)||0;
+    m.Quantidade += Number(r.Quantidade)||0;
+  });
+  const arr = Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
+  return arr;
+}
+function buildLabelsFromMonthly(monthly){
+  return monthly.map(r => labelMonth(r.Data));
+}
+function aggMonthlyByCategoryAligned(rows, labels){
+  const labelToDate = new Map();
+  labels.forEach((lab,i)=>{ /* derive Date objects per label for alignment check, if needed */ });
+  const catsSet = new Set();
+  const tmp = {}; // cat -> {label -> {Valor, Quantidade}}
+  rows.forEach(r=>{
+    catsSet.add(r.Categoria);
+    const lab = labelMonth(r.Data);
+    tmp[r.Categoria] = tmp[r.Categoria] || {};
+    if(!tmp[r.Categoria][lab]) tmp[r.Categoria][lab] = {Valor:0, Quantidade:0};
+    tmp[r.Categoria][lab].Valor += r.Valor;
+    tmp[r.Categoria][lab].Quantidade += r.Quantidade;
+  });
+  const outData = {};
+  Array.from(catsSet).forEach(cat=>{
+    const series = labels.map(lab=>{
+      const v = tmp[cat][lab] || {Valor:0, Quantidade:0};
+      return {Label:lab, Valor:v.Valor, Quantidade:v.Quantidade};
+    });
+    outData[cat] = series;
+  });
+  return {cats:Array.from(catsSet), data:outData};
 }
 
-/* ---------------- VISÃO GERAL ---------------- */
+/* ---------------------- Charts ---------------------- */
 function drawTotal(){
- if(!MONTHLY.length)return;
- MONTHLY.sort((a,b)=>a.Data-b.Data);
- const x=MONTHLY.map(r=>r.Data.toISOString().slice(0,10));
- const minDate=MONTHLY[0].Data,maxDate=MONTHLY[MONTHLY.length-1].Data;
+  if(!MONTHLY.length) return;
 
- const tickvals=[],ticktext=[];
- for(let i=0;i<MONTHLY.length;i++){
-   const dt=MONTHLY[i].Data;
-   if(dt.getMonth()%2===1){
-     tickvals.push(dt.toISOString().slice(0,10));
-     ticktext.push(PT_ABBR[dt.getMonth()]+" "+String(dt.getFullYear()).slice(-2));
-   }
- }
+  const labels = MONTHLY_LABELS.slice(); // categorical
+  X_LABELS_BY_DIV['chart-total'] = labels;
 
- const barsValor={
-   x,
-   y:MONTHLY.map(r=>r.Valor),
-   type:'bar',
-   marker:{color:'var(--red)',opacity:0.75},
-   name:'Valor (R$)',
-   yaxis:'y',
-   hovertemplate:"<b>%{x}</b><br>Valor: %{customdata.v}<extra></extra>",
-   customdata:MONTHLY.map(r=>({v:new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(r.Valor)}))
- };
- const lineQtd={
-   x,
-   y:MONTHLY.map(r=>r.Quantidade),
-   mode:'lines+markers',
-   line:{shape:'spline',width:3,color:'var(--blue)',smoothing:0.6},
-   marker:{size:6,line:{width:1,color:'#fff'}},
-   name:'Quantidade (un.)',
-   yaxis:'y2',
-   hovertemplate:"<b>%{x}</b><br>Quantidade: %{customdata.q} un<extra></extra>",
-   customdata:MONTHLY.map(r=>({q:new Intl.NumberFormat('pt-BR').format(r.Quantidade)}))
- };
+  const barsValor = {
+    x: labels,
+    y: MONTHLY.map(r=>r.Valor),
+    type:'bar',
+    marker:{color:'var(--red)', opacity:0.85},
+    name:'Valor (R$)',
+    yaxis:'y',
+    hovertemplate:"<b>Valor: %{customdata.v}</b><extra></extra>",
+    customdata: MONTHLY.map(r=>({v:fmtBRL(r.Valor)}))
+  };
+  const lineQtd = {
+    x: labels,
+    y: MONTHLY.map(r=>r.Quantidade),
+    mode:'lines+markers',
+    line:{shape:'spline',smoothing:0.6,width:3,color:'var(--blue)'},
+    marker:{size:6,line:{width:1,color:'#fff'}},
+    name:'Quantidade (un.)',
+    yaxis:'y2',
+    hovertemplate:"<b>Quantidade: %{customdata.q} un</b><extra></extra>",
+    customdata: MONTHLY.map(r=>({q:fmtQTD(r.Quantidade)}))
+  };
 
- const layout={
-   hovermode:'x unified',
-   legend:{orientation:'h',y:-0.25,font:{size:isMobile()?11:12}},
-   xaxis:{showgrid:false,tickmode:'array',tickvals,ticktext,range:[minDate,maxDate],tickfont:{size:isMobile()?10:12},automargin:true},
-   yaxis:{title:'Valor (R$)',gridcolor:'#e9ecef',zeroline:false,tickfont:{size:isMobile()?10:12},automargin:true},
-   yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right',tickfont:{size:isMobile()?10:12},automargin:true},
-   paper_bgcolor:'#fff',plot_bgcolor:'#fff',margin:{t:20,r:40,b:80,l:60}
- };
+  const layout = {
+    hovermode:'x unified',
+    legend:{orientation:'h',y:-0.25,font:{size:isMobile()?11:12}},
+    xaxis:{
+      type:'category',
+      categoryorder:'array',
+      categoryarray: labels,
+      showgrid:false,
+      tickfont:{size:isMobile()?10:12},
+      automargin:true
+    },
+    yaxis:{
+      title:'Valor (R$)',
+      gridcolor:'#e9ecef',
+      zeroline:false,
+      tickfont:{size:isMobile()?10:12},
+      automargin:true,
+      range:[0,5000000],
+      dtick:1000000,
+      tickformat: ',.0f'
+    },
+    yaxis2:{
+      title:'Quantidade (un.)',
+      overlaying:'y',
+      side:'right',
+      tickfont:{size:isMobile()?10:12},
+      automargin:true
+    },
+    paper_bgcolor:'#fff', plot_bgcolor:'#fff',
+    margin:{t:20,r:40,b:80,l:60}
+  };
 
- Plotly.newPlot('chart-total',[barsValor,lineQtd],layout,{responsive:true});
- Plotly.relayout('chart-total',{'xaxis.range':[minDate,maxDate]});
- const m=computeMetrics(MONTHLY,'Valor');
- document.getElementById('var-total').textContent=m.varTotal;
- document.getElementById('med-total').textContent=m.medMensal;
- document.getElementById('vol-total').textContent=m.vol;
+  Plotly.newPlot('chart-total',[barsValor,lineQtd],layout,{responsive:true});
+  // Default 1A view
+  applyRangeLabels('chart-total', labels, Math.max(0, labels.length-12), labels.length-1);
+  updateMetricsFromView('chart-total', labels); // compute metrics for current window
 }
 
-/* ---------------- BOOT ---------------- */
-let RAW_ROWS=[],MONTHLY=[];
+function drawCat(){
+  const labels = MONTHLY_LABELS.slice();
+  X_LABELS_BY_DIV['chart-cat'] = labels;
+
+  const traces = CAT_ORDER.map(cat=>{
+    const series = MONTHLY_BY_CAT[cat] || [];
+    return {
+      x: labels,
+      y: series.map(p=>p.Valor),
+      mode:'lines+markers',
+      line:{shape:'spline',smoothing:0.6,width:3,color:COLORS[cat]||'var(--orange)'},
+      marker:{size:5,line:{width:1,color:'#fff'}},
+      name: cat+" (R$)",
+      yaxis:'y',
+      hovertemplate:"<b>Valor: %{customdata.v}</b><extra></extra>",
+      customdata: series.map(p=>({v:fmtBRL(p.Valor)}))
+    };
+  });
+
+  const qtdTotal = {
+    x: labels,
+    y: MONTHLY.map(r=>r.Quantidade),
+    mode:'lines+markers',
+    line:{shape:'spline',smoothing:0.6,width:3,color:'var(--blue)'},
+    marker:{size:5,line:{width:1,color:'#fff'}},
+    name:"Quantidade total (un.)",
+    yaxis:"y2",
+    hovertemplate:"<b>Quantidade: %{customdata.q} un</b><extra></extra>",
+    customdata: MONTHLY.map(r=>({q:fmtQTD(r.Quantidade)}))
+  };
+
+  const layout = {
+    hovermode:'x unified',
+    legend:{orientation:'h',y:-0.25,font:{size:isMobile()?11:12}},
+    xaxis:{
+      type:'category',
+      categoryorder:'array',
+      categoryarray: labels,
+      showgrid:false,
+      tickfont:{size:isMobile()?10:12}, automargin:true
+    },
+    yaxis:{title:'Valor (R$)',gridcolor:'#e9ecef',zeroline:false,tickfont:{size:isMobile()?10:12}, automargin:true},
+    yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right',tickfont:{size:isMobile()?10:12}, automargin:true},
+    paper_bgcolor:'#fff', plot_bgcolor:'#fff', margin:{t:20,r:40,b:80,l:60}
+  };
+
+  Plotly.newPlot('chart-cat',[...traces, qtdTotal],layout,{responsive:true});
+  applyRangeLabels('chart-cat', labels, Math.max(0, labels.length-12), labels.length-1);
+  updateMetricsFromView('chart-cat', labels, /*useValor=*/true);
+}
+
+function buildCategoryCards(containerId){
+  const container = document.getElementById(containerId);
+  container.innerHTML = CAT_ORDER.map(cat=>{
+    const safe = cat.replace(/\s+/g,'-').toLowerCase();
+    return `
+      <div class="section" style="margin:12px 0">
+        <div class="titlebar collapsible" data-target="card-${safe}">
+          <span>${cat}</span><span class="caret">▶</span>
+        </div>
+        <div id="card-${safe}" class="card-wrap" style="max-height:0">
+          <div class="card">
+            <div class="rangebar" id="range-${safe}">
+              <button class="rbtn" data-target="chart-${safe}" data-range="3M">3M</button>
+              <button class="rbtn" data-target="chart-${safe}" data-range="6M">6M</button>
+              <button class="rbtn" data-target="chart-${safe}" data-range="1A">1A</button>
+              <button class="rbtn" data-target="chart-${safe}" data-range="5A">5A</button>
+              <button class="rbtn active" data-target="chart-${safe}" data-range="TUDO">Tudo</button>
+              <span style="margin-left:8px;">De</span>
+              <input type="month" id="from-${safe}"/>
+              <span>até</span>
+              <input type="month" id="to-${safe}"/>
+              <button class="rbtn" onclick="applyCustom('chart-${safe}','from-${safe}','to-${safe}')">Aplicar</button>
+              <button class="rbtn" onclick="resetRange('chart-${safe}')">Reset</button>
+            </div>
+            <div class="metrics">
+              <div class="metric"><div class="k">Variação total</div><div class="v" id="var-${safe}">—</div></div>
+              <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-${safe}">—</div></div>
+              <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-${safe}">—</div></div>
+            </div>
+            <div class="chart" id="chart-${safe}"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // Wire range bars for each category
+  CAT_ORDER.forEach(cat=>{
+    const safe = cat.replace(/\s+/g,'-').toLowerCase();
+    wireRangeBar(`range-${safe}`);
+  });
+}
+
+function drawCategory(chartId){
+  const catKey = chartId.replace('chart-','').replace(/-/g,' ');
+  const proper = CAT_ORDER.find(c => c.toLowerCase() === catKey);
+  if(!proper) return;
+
+  const labels = MONTHLY_LABELS.slice();
+  X_LABELS_BY_DIV[chartId] = labels;
+
+  const series = MONTHLY_BY_CAT[proper] || labels.map(l=>({Label:l,Valor:0,Quantidade:0}));
+  const valor = {
+    x: labels,
+    y: series.map(p=>p.Valor),
+    mode:'lines+markers',
+    line:{shape:'spline',smoothing:0.6,width:3,color:'var(--red)'},
+    marker:{size:6,line:{width:1,color:'#fff'}},
+    name:"Valor (R$)",
+    yaxis:"y",
+    hovertemplate:"<b>Valor: %{customdata.v}</b><extra></extra>",
+    customdata: series.map(p=>({v:fmtBRL(p.Valor)}))
+  };
+  const qtd = {
+    x: labels,
+    y: series.map(p=>p.Quantidade),
+    mode:'lines+markers',
+    line:{shape:'spline',smoothing:0.6,width:3,color:'var(--blue)'},
+    marker:{size:6,line:{width:1,color:'#fff'}},
+    name:"Quantidade (un.)",
+    yaxis:"y2",
+    hovertemplate:"<b>Quantidade: %{customdata.q} un</b><extra></extra>",
+    customdata: series.map(p=>({q:fmtQTD(p.Quantidade)}))
+  };
+
+  const layout = {
+    hovermode:'x unified',
+    legend:{orientation:'h',y:-0.25,font:{size:isMobile()?11:12}},
+    xaxis:{
+      type:'category',
+      categoryorder:'array',
+      categoryarray: labels,
+      showgrid:false, tickfont:{size:isMobile()?10:12}, automargin:true
+    },
+    yaxis:{title:'Valor (R$)',gridcolor:'#e9ecef',zeroline:false,tickfont:{size:isMobile()?10:12}, automargin:true},
+    yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right',tickfont:{size:isMobile()?10:12}, automargin:true},
+    paper_bgcolor:'#fff', plot_bgcolor:'#fff', margin:{t:20,r:40,b:80,l:60}
+  };
+
+  Plotly.newPlot(chartId,[valor,qtd],layout,{responsive:true});
+  // default 1A
+  applyRangeLabels(chartId, labels, Math.max(0, labels.length-12), labels.length-1);
+  // metrics
+  const safe = proper.replace(/\s+/g,'-').toLowerCase();
+  updateMetricsFromView(chartId, labels, proper);
+}
+
+/* --------------- Metrics Live Update on Range --------------- */
+/* We read current x-range (labels) from Plotly and recompute metrics over the visible window */
+function getVisibleLabelRange(divId, labels){
+  const gd = document.getElementById(divId);
+  const xr = gd && gd.layout && gd.layout.xaxis && gd.layout.xaxis.range;
+  if(!xr || xr.length!==2) return [0, labels.length-1];
+  const sIdx = labels.indexOf(xr[0]);
+  const eIdx = labels.indexOf(xr[1]);
+  if (sIdx<0 || eIdx<0) return [0, labels.length-1];
+  return [Math.min(sIdx,eIdx), Math.max(sIdx,eIdx)];
+}
+function updateMetricsFromView(divId, labels, categoryName=null){
+  const [s,e] = getVisibleLabelRange(divId, labels);
+
+  if (divId === 'chart-total'){
+    const windowRows = MONTHLY.slice(s, e+1);
+    const m = computeMetrics(windowRows, 'Valor');
+    document.getElementById('var-total').textContent = m.varTotal;
+    document.getElementById('med-total').textContent = m.medMensal;
+    document.getElementById('vol-total').textContent = m.vol;
+  } else if (divId === 'chart-cat'){
+    const windowRows = MONTHLY.slice(s, e+1);
+    const m = computeMetrics(windowRows, 'Valor');
+    document.getElementById('var-cat').textContent = m.varTotal;
+    document.getElementById('med-cat').textContent = m.medMensal;
+    document.getElementById('vol-cat').textContent = m.vol;
+  } else if (categoryName){
+    const safe = categoryName.replace(/\s+/g,'-').toLowerCase();
+    const series = MONTHLY_BY_CAT[categoryName] || [];
+    const windowSeries = series.slice(s, e+1).map((p,i)=>({Data: i, Valor:p.Valor, Quantidade:p.Quantidade}));
+    const m = computeMetrics(windowSeries, 'Valor');
+    document.getElementById(`var-${safe}`).textContent = m.varTotal;
+    document.getElementById(`med-${safe}`).textContent = m.medMensal;
+    document.getElementById(`vol-${safe}`).textContent = m.vol;
+  }
+}
+
+/* Listen for zoom/pan to keep metrics in sync */
+function attachRelayoutSync(divId, labels, categoryName=null){
+  const gd = document.getElementById(divId);
+  if(!gd) return;
+  gd.on('plotly_relayout', ()=>{
+    updateMetricsFromView(divId, labels, categoryName);
+  });
+}
+
+/* ---------------------- Boot ---------------------- */
 (async function(){
- const res=await fetch('data/relatorio_faturamento.csv');
- const text=await res.text();
- const parsed=Papa.parse(text,{header:true,skipEmptyLines:true});
- RAW_ROWS=normalizeRows(parsed.data);
- console.log("✅ CSV carregado:",RAW_ROWS.length,"linhas");
- MONTHLY=aggMonthly(RAW_ROWS);
- DATA_MIN=MONTHLY[0]?.Data||new Date();
- DATA_MAX=MONTHLY[MONTHLY.length-1]?.Data||new Date();
- const maxD=DATA_MAX;
- document.getElementById("updated").textContent="Atualizado: "+PT_ABBR[maxD.getMonth()]+"/"+maxD.getFullYear();
- drawTotal();
- wireRangeBar('range-total');
+  // Load CSV
+  const res = await fetch('data/relatorio_faturamento.csv');
+  const text = await res.text();
+  const parsed = Papa.parse(text,{header:true,skipEmptyLines:true});
+  RAW_ROWS = normalizeRows(parsed.data);
+  console.log("✅ CSV carregado:", RAW_ROWS.length, "linhas");
+
+  // Updated label
+  const maxD = RAW_ROWS.length ? RAW_ROWS[RAW_ROWS.length-1].Data : new Date();
+  document.getElementById("updated").textContent = "Atualizado: " + PT_ABBR[maxD.getMonth()] + "/" + maxD.getFullYear();
+
+  // Aggregations
+  MONTHLY = aggMonthly(RAW_ROWS);
+  MONTHLY_LABELS = buildLabelsFromMonthly(MONTHLY);
+  const bycat = aggMonthlyByCategoryAligned(RAW_ROWS, MONTHLY_LABELS);
+  CATS = bycat.cats;
+  MONTHLY_BY_CAT = bycat.data;
+
+  // Category order (main + acessórios + extras)
+  const mainSet = ["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores"];
+  const others = CATS.filter(c=>!mainSet.includes(c) && c!=="Acessórios");
+  CAT_ORDER = [
+    ...mainSet.filter(c => CATS.includes(c)),
+    ...(CATS.includes("Acessórios") ? ["Acessórios"] : []),
+    ...others
+  ];
+
+  // Draw charts
+  drawTotal();
+  attachRelayoutSync('chart-total', MONTHLY_LABELS);
+
+  drawCat();
+  attachRelayoutSync('chart-cat', MONTHLY_LABELS);
+
+  buildCategoryCards("cats-container");
+
+  // Lazy draw each category when opened
+  document.getElementById('card-cats').addEventListener('click', (e)=>{
+    const bar = e.target.closest('.titlebar.collapsible');
+    // collapsible handling is global earlier
+  });
+
+  // When a category section opens, render that chart
+  document.querySelectorAll('.titlebar.collapsible').forEach(tb=>{
+    tb.addEventListener('click', ()=>{
+      const id = tb.getAttribute('data-target');
+      if(!id.startsWith('card-') || id==='card-cat' || id==='card-cats') return;
+      const chartId = id.replace('card-','chart-');
+      if (!document.getElementById(chartId).dataset.rendered){
+        drawCategory(chartId);
+        attachRelayoutSync(chartId, MONTHLY_LABELS, tb.textContent.replace('▼','').replace('▶','').trim());
+        document.getElementById(chartId).dataset.rendered = "1";
+      } else {
+        // refresh metrics after reopen
+        updateMetricsFromView(chartId, MONTHLY_LABELS, tb.textContent.replace('▼','').replace('▶','').trim());
+      }
+    });
+  });
+
+  // Wire ranges
+  wireRangeBar('range-total');
+  wireRangeBar('range-cat');
+
 })();
 </script>
 </body>
