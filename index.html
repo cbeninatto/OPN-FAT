@@ -396,18 +396,17 @@ let SHARE_MODE = 'valor'; // or 'quantidade'
 function normalizeRows(rows){
   const out = [];
   rows.forEach(o=>{
-    // Clean possible hidden chars and enforce numeric year/month
-    const anoStr = (o.Ano||o.ano||o.ANO||"").toString().replace(/[^\d]/g,"").trim();
-    const mesStr = (o.Mes||o.mes||o.MES||"").toString().replace(/[^\d]/g,"").trim();
-    const ano = Number(anoStr);
-    const mes = Number(mesStr);
+    // Parse year and month safely
+    const ano = Number(String(o.Ano || o.ano || o.ANO || "").trim());
+    const mes = Number(String(o.Mes || o.mes || o.MES || "").trim());
 
-    // Skip invalid or nonsensical values
-    if(!Number.isFinite(ano) || !Number.isFinite(mes) || mes < 1 || mes > 12) return;
+    // Skip rows with missing or invalid values
+    if (!Number.isFinite(ano) || !Number.isFinite(mes) || mes < 1 || mes > 12) return;
 
+    // Build record
     out.push({
-      Codigo: (o.Codigo||"").toString().trim(),
-      Descricao: (o.Descricao||"").toString().trim(),
+      Codigo: (o.Codigo || "").toString().trim(),
+      Descricao: (o.Descricao || "").toString().trim(),
       Quantidade: Number(o.Quantidade) || 0,
       Valor: Number(o.Valor) || 0,
       Mes: mes,
@@ -417,8 +416,16 @@ function normalizeRows(rows){
     });
   });
 
-  // Strict chronological sort by year then month
-  out.sort((a,b)=> (a.Ano - b.Ano) || (a.Mes - b.Mes));
+  // Sort chronologically
+  out.sort((a, b) => (a.Ano - b.Ano) || (a.Mes - b.Mes));
+
+  // ✅ Keep only the last 10 years relative to the newest entry
+  if (out.length) {
+    const maxYear = out[out.length - 1].Ano;
+    const minAllowed = maxYear - 10;
+    return out.filter(r => r.Ano >= minAllowed && r.Ano <= maxYear);
+  }
+
   return out;
 }
 function aggMonthly(rows){
