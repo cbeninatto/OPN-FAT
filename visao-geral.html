@@ -1,31 +1,78 @@
-<!-- test.html | v1.3 | Strict categorical X (no Date) + Stats Block -->
+<!-- test.html | v1.4 | Categórico + Indicadores + Filtros 3M/6M/1A/5A/Tudo + Período manual -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Teste - Visão Geral (com Indicadores)</title>
+<title>Teste - Visão Geral (Filtros de Período)</title>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{--bg:#dfe1e1;--card:#fff;--red:#e53935;--blue:#1e88e5}
-  body{margin:0;background:var(--bg);font-family:Inter,system-ui}
-  .wrap{max-width:1000px;margin:40px auto;background:var(--card);padding:20px;border-radius:10px;box-shadow:0 3px 10px rgba(0,0,0,.1)}
-  #chart{width:100%;height:550px}
-  #loading{position:fixed;inset:0;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-weight:600;z-index:10}
+  :root{--bg:#dfe1e1;--card:#fff;--red:#e53935;--blue:#1e88e5;--ink:#1f2937;--muted:#6b7280;--gold:#f5b95f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:Inter,system-ui;color:var(--ink)}
+  .wrap{max-width:1100px;margin:36px auto;background:var(--card);padding:22px;border-radius:14px;box-shadow:0 6px 26px rgba(16,24,40,.08)}
+  h2{margin:0 0 14px 0}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 16px}
+  .btn{appearance:none;border:1px solid #e5e7eb;background:#fff;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+  .btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn:hover{border-color:#d1d5db}
+  .period{display:flex;gap:8px;align-items:center;margin-left:auto}
+  select{border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;background:#fff}
+  label{font-size:14px;color:var(--muted)}
+  #chart{width:100%;height:560px}
+  #loading{position:fixed;inset:0;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-weight:700;z-index:10}
   #loading.hidden{opacity:0;pointer-events:none;transition:opacity .3s}
-  pre{white-space:pre-wrap;background:#fafafa;border:1px solid #eee;padding:8px;border-radius:6px}
-  #stats{margin-top:25px;display:flex;gap:30px;flex-wrap:wrap;font-size:15px;font-weight:500}
-  #stats div{background:#fafafa;border-radius:8px;padding:10px 15px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
-  #stats span{font-weight:700;color:var(--blue)}
+  #stats{margin:18px 0 8px;display:flex;gap:14px;flex-wrap:wrap}
+  #stats .card{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:10px 14px;min-width:180px}
+  #stats .title{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  #stats .value{font-size:18px;font-weight:700;color:#0f172a}
+  .legend{font-size:12px;color:#64748b;margin:8px 0}
+  pre{white-space:pre-wrap;background:#fff;border:1px dashed #e5e7eb;padding:8px;border-radius:10px;color:#475569}
 </style>
 </head>
 <body>
 <div id="loading">Carregando dados…</div>
 <div class="wrap">
-  <h2>📊 Visão Geral (Valor e Quantidade)</h2>
+  <h2>📊 Visão Geral — Valor & Quantidade</h2>
+
+  <!-- Filtros de período -->
+  <div class="toolbar">
+    <button class="btn" data-window="3M">3M</button>
+    <button class="btn" data-window="6M">6M</button>
+    <button class="btn" data-window="1A">1A</button>
+    <button class="btn" data-window="5A">5A</button>
+    <button class="btn active" data-window="TUDO">Tudo</button>
+    <div class="period">
+      <label for="startSel">Período:</label>
+      <select id="startSel"></select>
+      <span>—</span>
+      <select id="endSel"></select>
+      <button class="btn" id="applyRange">Aplicar</button>
+    </div>
+  </div>
+
   <div id="chart"></div>
-  <div id="stats"></div>
+
+  <!-- Indicadores -->
+  <div id="stats">
+    <div class="card">
+      <div class="title">Variação Total</div>
+      <div class="value" id="varTotal">—</div>
+    </div>
+    <div class="card">
+      <div class="title">Média Mensal</div>
+      <div class="value" id="avgMensal">—</div>
+    </div>
+    <div class="card">
+      <div class="title">Volatilidade</div>
+      <div class="value" id="volatilidade">—</div>
+    </div>
+  </div>
+
+  <div class="legend">Fonte: <code>data/relatorio_faturamento.csv</code> | Colunas esperadas: <code>Codigo, Descricao, Quantidade, Valor, Mes, Ano</code></div>
+
   <h3>Debug</h3>
   <pre id="debug"></pre>
 </div>
@@ -33,42 +80,38 @@
 <script>
 const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
 
-// --- Normalize CSV rows ---
-function normalizeRows(rows){
-  const out=[];
-  for(const o of rows){
-    const ano = Number(o.Ano);
-    const mes = Number(o.Mes);
-    if(!Number.isFinite(ano) || !Number.isFinite(mes) || mes<1 || mes>12) continue;
-    out.push({
-      Ano:ano,
-      Mes:mes,
-      Valor:Number(o.Valor)||0,
-      Quantidade:Number(o.Quantidade)||0,
-      Key:`${ano}-${String(mes).padStart(2,"0")}` // categorical key
-    });
-  }
-  out.sort((a,b)=> a.Key.localeCompare(b.Key));
-  return out;
-}
+/* -------------------- Helpers -------------------- */
+const keyFromYM=(y,m)=>`${y}-${String(m).padStart(2,"0")}`;
+const labelFromYM=(y,m)=>`${PT_ABBR[m-1]} ${String(y).slice(-2)}`;
 
-// --- Aggregate by month ---
-function aggMonthly(rows){
-  const map = new Map();
-  for(const r of rows){
-    if(!map.has(r.Key)) map.set(r.Key, {Key:r.Key, Valor:0, Quantidade:0, Ano:r.Ano, Mes:r.Mes});
-    const m = map.get(r.Key);
-    m.Valor += r.Valor;
-    m.Quantidade += r.Quantidade;
-  }
-  return [...map.values()].sort((a,b)=> a.Key.localeCompare(b.Key));
-}
-
-// --- Formatters ---
 function fmtBRL(v){ return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}); }
 function fmtInt(v){ return Math.round(v).toLocaleString("pt-BR"); }
+function pctStr(v){ return (isFinite(v)? v : 0).toFixed(2).replace(".",",")+"%"; }
 
-// --- Stats calculations (as in v5.3.2) ---
+/* -------------------- CSV normalization -------------------- */
+/* CSV esperado: Codigo, Descricao, Quantidade, Valor, Mes, Ano */
+function normalizeRows(rows){
+  const out=[];
+  for(const r of rows){
+    const ano=Number(r.Ano), mes=Number(r.Mes);
+    const valor=Number(r.Valor)||0;
+    const qtd=Number(r.Quantidade)||0;
+    if(!Number.isFinite(ano) || !Number.isFinite(mes) || mes<1 || mes>12) continue;
+    out.push({Ano:ano,Mes:mes,Valor:valor,Quantidade:qtd,Key:keyFromYM(ano,mes)});
+  }
+  // agrega por Key (somando tudo que vier de códigos/descrições no mês)
+  const map=new Map();
+  for(const x of out){
+    if(!map.has(x.Key)) map.set(x.Key,{Key:x.Key,Ano:x.Ano,Mes:x.Mes,Valor:0,Quantidade:0});
+    const m=map.get(x.Key);
+    m.Valor+=x.Valor;
+    m.Quantidade+=x.Quantidade;
+  }
+  const monthly=[...map.values()].sort((a,b)=>a.Key.localeCompare(b.Key));
+  return monthly;
+}
+
+/* -------------------- Stats como no v5.3.2 -------------------- */
 function calcStats(values){
   if(values.length<2) return {varTotal:0,avgMensal:0,volatilidade:0};
   const pct=[];
@@ -77,40 +120,66 @@ function calcStats(values){
     if(v0!==0) pct.push((v1/v0-1)*100);
   }
   const varTotal=(values.at(-1)/values[0]-1)*100;
-  const avgMensal=pct.reduce((a,b)=>a+b,0)/pct.length;
+  const avgMensal=pct.reduce((a,b)=>a+b,0)/(pct.length||1);
   const mean=avgMensal;
-  const volatilidade=Math.sqrt(pct.reduce((a,b)=>a+(b-mean)**2,0)/(pct.length-1));
+  const volatilidade=Math.sqrt(pct.reduce((a,b)=>a+(b-mean)**2,0)/Math.max(1,(pct.length-1)));
   return {varTotal,avgMensal,volatilidade};
 }
 
-// --- Draw chart ---
-function drawTotal(monthly){
-  if(!monthly.length){ document.getElementById('debug').textContent += "\nNenhum dado após normalização."; return; }
+/* -------------------- Filtro por janela/intervalo -------------------- */
+function sliceLast(monthly, n){
+  if(n<=0) return [];
+  return monthly.slice(-n);
+}
+function filterRange(monthly, startKey, endKey){
+  return monthly.filter(m=> m.Key>=startKey && m.Key<=endKey);
+}
 
+/* -------------------- UI: popula selects de período -------------------- */
+function populatePeriodSelects(monthly){
+  const startSel=document.getElementById('startSel');
+  const endSel=document.getElementById('endSel');
+  startSel.innerHTML=""; endSel.innerHTML="";
+  for(const m of monthly){
+    const opt1=document.createElement('option');
+    opt1.value=m.Key; opt1.textContent=labelFromYM(m.Ano,m.Mes);
+    const opt2=opt1.cloneNode(true);
+    startSel.appendChild(opt1);
+    endSel.appendChild(opt2);
+  }
+  // padrão = Tudo
+  if(monthly.length){
+    startSel.value=monthly[0].Key;
+    endSel.value=monthly.at(-1).Key;
+  }
+}
+
+/* -------------------- Desenho do gráfico -------------------- */
+function drawChart(monthly){
   const x=monthly.map(m=>m.Key);
-  const ticktext=monthly.map(m=>PT_ABBR[m.Mes-1]+" "+String(m.Ano).slice(-2));
+  const ticktext=monthly.map(m=>labelFromYM(m.Ano,m.Mes));
 
   const barsValor={
-    x,y:monthly.map(m=>m.Valor),
+    x, y: monthly.map(m=>m.Valor),
     type:'bar',
-    marker:{color:'var(--red)',opacity:0.85},
+    marker:{color:'var(--red)',opacity:0.9},
     name:'Valor (R$)',
-    hovertemplate:"<b>Valor:</b> %{customdata.v}<extra></extra>",
-    customdata:monthly.map(m=>({v:fmtBRL(m.Valor)}))
+    hovertemplate:"<b>%{customdata.l}</b><br>Valor: %{customdata.v}<extra></extra>",
+    customdata: monthly.map(m=>({l:labelFromYM(m.Ano,m.Mes), v:fmtBRL(m.Valor)}))
   };
 
   const lineQtd={
-    x,y:monthly.map(m=>m.Quantidade),
+    x, y: monthly.map(m=>m.Quantidade),
     mode:'lines+markers',
     line:{shape:'spline',width:3,color:'var(--blue)',smoothing:0.6},
     marker:{size:6,line:{width:1,color:'#fff'}},
     name:'Quantidade (un.)',
     yaxis:'y2',
-    hovertemplate:"<b>Quantidade:</b> %{customdata.q} un<extra></extra>",
-    customdata:monthly.map(m=>({q:fmtInt(m.Quantidade)}))
+    hovertemplate:"<b>%{customdata.l}</b><br>Quantidade: %{customdata.q} un<extra></extra>",
+    customdata: monthly.map(m=>({l:labelFromYM(m.Ano,m.Mes), q:fmtInt(m.Quantidade)}))
   };
 
-  Plotly.newPlot('chart',[barsValor,lineQtd],{
+  const layout={
     hovermode:'x unified',
     xaxis:{
       type:'category',
@@ -121,42 +190,101 @@ function drawTotal(monthly){
       ticktext:ticktext,
       showgrid:false
     },
-    yaxis:{title:'Valor (R$)',gridcolor:'#e9ecef'},
-    yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right'},
-    legend:{orientation:'h',y:-0.25},
+    yaxis:{title:'Valor (R$)',gridcolor:'#e9ecef',autorange:true},
+    yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right',autorange:true},
+    legend:{orientation:'h',y:-0.22},
     paper_bgcolor:'#fff',
     plot_bgcolor:'#fff',
-    margin:{t:30,r:40,b:80,l:60}
-  },{responsive:true});
+    margin:{t:30,r:50,b:80,l:64}
+  };
 
-  // --- Compute and display stats ---
-  const valores=monthly.map(m=>m.Valor);
-  const stats=calcStats(valores);
-  document.getElementById('stats').innerHTML=`
-    <div>📈 <b>Variação Total:</b> <span>${stats.varTotal.toFixed(1)}%</span></div>
-    <div>📊 <b>Média Mensal:</b> <span>${stats.avgMensal.toFixed(2)}%</span></div>
-    <div>⚡ <b>Volatilidade:</b> <span>${stats.volatilidade.toFixed(2)}%</span></div>
-  `;
+  // autoscale garantido ao redesenhar
+  Plotly.react('chart',[barsValor,lineQtd],layout,{responsive:true});
 }
 
-// --- Main ---
+/* -------------------- Atualiza indicadores -------------------- */
+function updateStats(monthly){
+  const v=monthly.map(m=>m.Valor);
+  const s=calcStats(v);
+  document.getElementById('varTotal').textContent=pctStr(s.varTotal);
+  document.getElementById('avgMensal').textContent=pctStr(s.avgMensal);
+  document.getElementById('volatilidade').textContent=pctStr(s.volatilidade);
+}
+
+/* -------------------- Estado / Interações -------------------- */
+let ALL_MONTHLY=[]; // dataset completo (agregado por mês)
+
+function applyWindow(windowTag){
+  // marca botão ativo
+  document.querySelectorAll('.btn[data-window]').forEach(b=>b.classList.toggle('active', b.dataset.window===windowTag));
+  let slice=[];
+  switch(windowTag){
+    case '3M': slice=sliceLast(ALL_MONTHLY,3); break;
+    case '6M': slice=sliceLast(ALL_MONTHLY,6); break;
+    case '1A': slice=sliceLast(ALL_MONTHLY,12); break;
+    case '5A': slice=sliceLast(ALL_MONTHLY,60); break;
+    case 'TUDO': default: slice=[...ALL_MONTHLY];
+  }
+  if(!slice.length){ drawChart([]); updateStats([]); return; }
+
+  // sincroniza selects com fatia escolhida
+  const startSel=document.getElementById('startSel');
+  const endSel=document.getElementById('endSel');
+  startSel.value=slice[0].Key;
+  endSel.value=slice.at(-1).Key;
+
+  drawChart(slice);
+  updateStats(slice);
+}
+
+function applyManualRange(){
+  const startSel=document.getElementById('startSel');
+  const endSel=document.getElementById('endSel');
+  let s=startSel.value, e=endSel.value;
+  if(!s||!e) return;
+
+  // garante ordem
+  if(s>e){ const tmp=s; s=e; e=tmp; }
+
+  const slice=filterRange(ALL_MONTHLY,s,e);
+  // marca "Tudo" se for abrangente, senão desmarca e deixa sem destaque
+  document.querySelectorAll('.btn[data-window]').forEach(b=>b.classList.remove('active'));
+  if(slice.length===ALL_MONTHLY.length) document.querySelector('.btn[data-window="TUDO"]').classList.add('active');
+
+  drawChart(slice);
+  updateStats(slice);
+}
+
+/* -------------------- Main -------------------- */
 (async()=>{
   try{
     const res=await fetch('data/relatorio_faturamento.csv?cb='+Date.now());
     const text=await res.text();
     const delim=text.includes(';')?';':',';
-    document.getElementById('debug').textContent=`Delimiter: "${delim}"`;
+    document.getElementById('debug').textContent=`Delimitador: "${delim}"`;
+
     const parsed=Papa.parse(text,{header:true,skipEmptyLines:true,delimiter:delim});
+    const monthly=normalizeRows(parsed.data);
+    ALL_MONTHLY=monthly;
 
-    const rows=normalizeRows(parsed.data);
-    document.getElementById('debug').textContent+=`\nRows after normalize: ${rows.length}`;
-    const monthly=aggMonthly(rows);
-    document.getElementById('debug').textContent+=`\nMonthly points: ${monthly.length}`;
+    document.getElementById('debug').textContent+=`\nMeses agregados: ${monthly.length}`;
+    if(monthly.length){
+      document.getElementById('debug').textContent+=`\nPrimeiro: ${monthly[0].Key}  | Último: ${monthly.at(-1).Key}`;
+    }
 
-    drawTotal(monthly);
+    populatePeriodSelects(monthly);
+    drawChart(monthly);
+    updateStats(monthly);
+
+    // listeners
+    document.querySelectorAll('.btn[data-window]').forEach(b=>{
+      b.addEventListener('click',()=>applyWindow(b.dataset.window));
+    });
+    document.getElementById('applyRange').addEventListener('click',applyManualRange);
+
   }catch(err){
     console.error(err);
-    document.getElementById('debug').textContent+=`\nERROR: ${err}`;
+    document.getElementById('debug').textContent+=`\nERRO: ${err}`;
   }finally{
     document.getElementById('loading').classList.add('hidden');
   }
