@@ -67,14 +67,35 @@ const COLORS={"Corrediça Oculta":"#d64b4b","Corrediça Telescópica":"#f57c00",
 let MODE='faturamento',RAW=[],MONTHLY=[],BY_CAT={},CAT_ORDER=[],DATA_KEYS=[];
 
 function detectDelimiter(t){const f=t.split(/\r?\n/)[0]||'';return (f.match(/;/g)||[]).length>(f.match(/,/g)||[]).length?';':',';}
-function mapCategoria(d){d=(d||'').toUpperCase();
- if(d.includes('ESCOND')||d.includes('SLIM MV119'))return'Corrediça Oculta';
- if(d.includes('TRILHO')&&(d.includes('NORMAL')||d.includes('TELE')||d.includes('TEL')))return'Corrediça Telescópica';
- if(d.includes('DOBRAD'))return'Dobradiças';
- if(d.includes('PIST')||d.includes('ARTICUL'))return'Articuladores';
- if(d.includes('RODIZ'))return'Rodízio';
- if(d.includes('PULSADOR')||d.includes('TIP-ON')||d.includes('TIP ON'))return'Pulsadores';
- return'Acessórios';}
+function mapCategoria(d){
+  d = (d || '').toUpperCase();
+
+  // --- Corrediça Oculta ---
+  if (
+    d.includes('ESCOND') ||
+    d.includes('SLIM MV119') ||
+    d.includes('DREAM BOX') ||
+    d.includes('OPENBOX') ||
+    (d.includes('GAVETA') && (d.includes('BOX') || d.includes('OPENBOX')))
+  ) return 'Corrediça Oculta';
+
+  // --- Corrediça Telescópica ---
+  if (
+    d.includes('TRILHO LIGHT') ||
+    d.includes('TRILHO LIFE') ||
+    d.includes('TRILHO MOVE') ||
+    d.includes('TRILHO LIGTH') || // typo variant
+    (d.includes('TRILHO') && (d.includes('NORMAL') || d.includes('TELE') || d.includes('TEL')))
+  ) return 'Corrediça Telescópica';
+
+  // --- Other categories ---
+  if (d.includes('DOBRAD')) return 'Dobradiças';
+  if (d.includes('PIST') || d.includes('ARTICUL')) return 'Articuladores';
+  if (d.includes('RODIZ')) return 'Rodízio';
+  if (d.includes('PULSADOR') || d.includes('TIP-ON') || d.includes('TIP ON')) return 'Pulsadores';
+  
+  return 'Acessórios';
+}
 function normalizeRows(rows){
  const out=[];rows.forEach(o=>{
    const Ano=+o.Ano||0,Mes=+o.Mes||0;if(!Ano||!Mes)return;
