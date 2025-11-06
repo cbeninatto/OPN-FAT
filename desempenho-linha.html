@@ -1,102 +1,98 @@
-<!-- test-visao-por-linha-v3.html | v3.0 | Visão por Linha (CSV + Filtros por Card + Métricas) -->
+<!-- test-visao-por-linha-v3.html | v3.1 | Robust numeric parsing + 10/2025 check -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Visão por Linha — Teste v3</title>
+<title>Visão por Linha — Teste v3.1</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
-  :root{
-    --bg:#dfe1e1; --card:#fff; --accent:#f5b95f; --ink:#000; --muted:#666;
-    --shadow:0 6px 18px rgba(0,0,0,.10);
-  }
+  :root{ --bg:#dfe1e1; --card:#fff; --accent:#f5b95f; --ink:#000; --muted:#666; --shadow:0 6px 18px rgba(0,0,0,.10) }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111}
   .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
   h2{margin:0 0 8px}
   .section{margin:16px 0}
-  /* Barra preta com faixa dourada à esquerda (igual Visão/Participação) */
-  .titlebar{
-    background:var(--ink); color:#fff; padding:12px 16px; border-radius:10px 10px 0 0;
-    display:flex;justify-content:space-between;align-items:center; font-weight:700; cursor:pointer;
-    border-left:6px solid var(--accent);
-  }
+  .titlebar{background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center;font-weight:700;cursor:pointer;border-left:6px solid var(--accent)}
   .titlebar.static{cursor:default}
   .caret{font-size:.9rem;opacity:.9}
-  .card-wrap{
-    overflow:hidden; transition:max-height .25s ease-in-out;
-    background:var(--card); border-radius:0 0 10px 10px; box-shadow:var(--shadow); margin-bottom:12px;
-  }
+  .card-wrap{overflow:hidden;transition:max-height .25s ease-in-out;background:#fff;border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px}
   .card{padding:14px;border-top:1px solid #eee}
-  /* Container pai pode crescer livremente (evita cortes) */
-  #card-cats{max-height:none!important; overflow:visible!important}
-
-  /* Barra de filtros por card */
-  .toolbar{
-    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
-    margin:0 0 12px;
-  }
-  .toolbar .left, .toolbar .right{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-  .btn-group{
-    display:flex; gap:6px; background:#fff; border:1px solid #eee; border-radius:10px; padding:6px;
-  }
-  .btn{
-    padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#fff; font-weight:700; cursor:pointer;
-  }
-  .btn.primary{background:#000; color:#fff; border-color:#000}
-  .field{
-    display:flex; gap:6px; align-items:center; background:#fff; border:1px solid #eee; border-radius:10px; padding:6px 8px;
-  }
+  #card-cats{max-height:none!important;overflow:visible!important}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 12px}
+  .toolbar .left,.toolbar .right{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .btn-group{display:flex;gap:6px;background:#fff;border:1px solid #eee;border-radius:10px;padding:6px}
+  .btn{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-weight:700;cursor:pointer}
+  .btn.primary{background:#000;color:#fff;border-color:#000}
+  .field{display:flex;gap:6px;align-items:center;background:#fff;border:1px solid #eee;border-radius:10px;padding:6px 8px}
   .field label{font-weight:700}
   select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
-
-  /* Métricas (6 blocos) */
-  .metrics{
-    display:grid; grid-template-columns: repeat(3, minmax(180px,1fr)); gap:10px; margin:8px 0 12px;
-  }
-  .metric{
-    background:#fff; border:1px solid #eee; border-left:6px solid var(--accent);
-    border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; gap:2px;
-  }
-  .metric .label{font-size:.86rem; color:#333; font-weight:600}
-  .metric .value{font-size:1.05rem; font-weight:800}
-
-  /* Placeholder quando não há dados no período */
-  .nodata{padding:10px; background:#fafafa; border:1px dashed #ddd; border-radius:8px; color:var(--muted)}
+  .metrics{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px;margin:8px 0 12px}
+  .metric{background:#fff;border:1px solid #eee;border-left:6px solid var(--accent);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+  .metric .label{font-size:.86rem;color:#333;font-weight:600}
+  .metric .value{font-size:1.05rem;font-weight:800}
+  .nodata{padding:10px;background:#fafafa;border:1px dashed #ddd;border-radius:8px;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h2>📈 Visão por Linha — Teste v3 (CSV + Filtros por Card + Métricas)</h2>
+  <h2>📈 Visão por Linha — Teste v3.1 (CSV + Filtros por Card + Métricas)</h2>
   <div class="section">
     <div class="titlebar static">Visão por Linha (colapsável)</div>
     <div id="card-cats" class="card-wrap">
-      <div class="card" id="cats-container"><!-- cards dinâmicos --></div>
+      <div class="card" id="cats-container"></div>
     </div>
   </div>
 </div>
 
 <script>
-// ========================= CONFIG =========================
-const CSV_URL = "data/relatorio_faturamento.csv"; // mesmo repositório
-const CATEGORIES = [
-  "Corrediça Oculta",
-  "Corrediça Telescópica",
-  "Dobradiças",
-  "Articuladores",
-  "Rodízio",
-  "Pulsadores",
-  "Acessórios"
-];
+// ========= Robust numeric parser (detects BR vs US) =========
+function normalizeNumericString(s){
+  if (s == null) return null;
+  if (typeof s === 'number') return s;
+  s = String(s).trim();
+  if (!s) return null;
 
-// Cores (mantendo a linguagem visual): faturamento dourado, volume preto
-const COLOR_FAT = "#f5b95f";
-const COLOR_VOL = "#000000";
+  // Pure digits? easy
+  if (/^-?\d+$/.test(s)) return Number(s);
 
-// Mapeamento fornecido
+  // Pattern A: BR style 1.234.567,89  or  28.914
+  const brPattern = /^-?\d{1,3}(\.\d{3})*(,\d+)?$/;
+  // Pattern B: US style 1,234,567.89  or  28,914
+  const usPattern = /^-?\d{1,3}(,\d{3})*(\.\d+)?$/;
+
+  if (brPattern.test(s)){
+    // remove thousands ".", replace decimal "," with "."
+    return Number(s.replace(/\./g,'').replace(',', '.'));
+  }
+  if (usPattern.test(s)){
+    // remove thousands ",", keep "." as decimal
+    return Number(s.replace(/,/g,''));
+  }
+
+  // Fallback: if only comma and no dot → comma is decimal
+  if (s.includes(',') && !s.includes('.')){
+    return Number(s.replace(/\./g,'').replace(',', '.'));
+  }
+  // If only dot → assume dot decimal (remove stray commas just in case)
+  if (s.includes('.') && !s.includes(',')){
+    return Number(s.replace(/,/g,''));
+  }
+
+  // Last resort: strip all non-digit/non-dot, then parse float
+  const cleaned = s.replace(/[^\d.-]/g,'');
+  const n = Number(cleaned);
+  return isFinite(n) ? n : null;
+}
+
+// ========= Visual config =========
+const CSV_URL = "data/relatorio_faturamento.csv";
+const CATEGORIES = ["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores","Acessórios"];
+const COLOR_FAT = "#f5b95f";  // faturamento
+const COLOR_VOL = "#000000";  // volume
+
 function mapCategoria(d){
   d=(d||'').toUpperCase();
   if(d.includes('ESCOND')||d.includes('SLIM MV119')||d.includes('DREAM BOX')||d.includes('OPENBOX')||(d.includes('GAVETA')&&(d.includes('BOX')||d.includes('OPENBOX'))))return'Corrediça Oculta';
@@ -108,68 +104,39 @@ function mapCategoria(d){
   return'Acessórios';
 }
 
-// ========================= STATE =========================
-let ALL_ROWS = []; // linhas normalizadas
+// ========= State & utils =========
+let ALL_ROWS = [];
+const z2 = n=>String(n).padStart(2,"0");
+function ymToKey(Y,M){return `${Y}-${z2(M)}`;}
+function keyToLabel(k){const [y,m]=k.split("-");return `${m}/${y}`;}
+function* monthRange(startKey,endKey){let[ys,ms]=startKey.split("-").map(Number);const[ye,me]=endKey.split("-").map(Number);while(ys<ye||(ys===ye&&ms<=me)){yield ymToKey(ys,ms);ms++;if(ms===13){ms=1;ys++;}}}
+function uniqueSorted(a){return Array.from(new Set(a)).sort();}
+function brMoney(n){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2}).format(n||0);}
+function brInt(n){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(n||0);}
+function brPerc(n){return (isFinite(n)? n : 0).toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';}
+function stdev(arr){const n=arr.length;if(!n)return 0;const m=arr.reduce((a,b)=>a+b,0)/n;const v=arr.reduce((a,b)=>a+(b-m)*(b-m),0)/n;return Math.sqrt(v);}
 
-// ========================= UTILS =========================
-const z2 = n => String(n).padStart(2,"0");
-function ymToKey(Y,M){ return `${Y}-${z2(M)}`; }
-function keyToLabel(key){ const [y,m]=key.split("-"); return `${m}/${y}`; }
-function parseNumberLoose(x){
-  if (typeof x === "number") return x;
-  if (x == null) return 0;
-  // remove espaços, milhar ".", troca vírgula por ponto
-  const s = String(x).trim().replace(/\s+/g,'');
-  if (!/^-?\d[\d.,]*$/.test(s)) return Number(s) || 0;
-  const normalized = s.replace(/\./g,'').replace(',', '.');
-  const n = Number(normalized);
-  return isFinite(n) ? n : 0;
-}
-function* monthRange(startKey, endKey){
-  let [ys, ms] = startKey.split("-").map(Number);
-  const [ye, me] = endKey.split("-").map(Number);
-  while (ys < ye || (ys===ye && ms <= me)){
-    yield ymToKey(ys, ms);
-    ms++;
-    if (ms===13){ ms=1; ys++; }
-  }
-}
-function uniqueSorted(arr){ return Array.from(new Set(arr)).sort(); }
-function brMoney(n){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n||0); }
-function brInt(n){ return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(n||0); }
-function brPerc(n){ return (isFinite(n)? n : 0).toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%'; }
-function stdev(arr){
-  const n = arr.length; if (!n) return 0;
-  const mean = arr.reduce((a,b)=>a+b,0)/n;
-  const v = arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/n;
-  return Math.sqrt(v);
-}
-
-// ========================= DATA =========================
+// ========= Data normalization =========
 function normalizeRows(csvRows){
-  // Espera: Codigo, Descricao, Quantidade, Valor, Mes, Ano
   return csvRows.map(r=>{
-    // Headers podem vir com espaços/maiúsculas diversos; normalizamos:
-    const Codigo = r.Codigo ?? r.codigo ?? r.CÓDIGO ?? r.cod ?? r.Cod ?? "";
     const Descricao = r.Descricao ?? r.DESCRICAO ?? r.DESCRIÇÃO ?? r.descricao ?? "";
-    const Quantidade = parseNumberLoose(r.Quantidade ?? r.Qtd ?? r.quantidade);
-    const Valor = parseNumberLoose(r.Valor ?? r.valor);
-    const Mes = parseInt(r.Mes ?? r.mes, 10);
-    const Ano = parseInt(r.Ano ?? r.ano, 10);
+    const Quantidade = normalizeNumericString(r.Quantidade ?? r.Qtd ?? r.quantidade);
+    const Valor = normalizeNumericString(r.Valor ?? r.valor);
+    const Mes = normalizeNumericString(r.Mes ?? r.mes);
+    const Ano = normalizeNumericString(r.Ano ?? r.ano);
 
-    const ano = isFinite(Ano) ? Ano : 0;
-    const mes = isFinite(Mes) ? Mes : 0;
+    const ano = (Ano && isFinite(Ano)) ? Number(Ano) : 0;
+    const mes = (Mes && isFinite(Mes)) ? Number(Mes) : 0;
     const key = (ano>0 && mes>0 && mes<=12) ? ymToKey(ano, mes) : "";
 
     return {
-      codigo: Codigo,
       descricao: Descricao || "",
-      quantidade: isFinite(Quantidade)? Quantidade : 0,
-      valor: isFinite(Valor)? Valor : 0,
+      quantidade: isFinite(Quantidade)? Number(Quantidade) : 0,
+      valor: isFinite(Valor)? Number(Valor) : 0,
       mes, ano, key,
       categoria: mapCategoria(Descricao||"")
     };
-  }).filter(r => r.key);
+  }).filter(r=>r.key);
 }
 
 function keysForCategory(rows, category){
@@ -185,15 +152,12 @@ function aggregateCategoryMonthly(rows, category, startKey, endKey){
     if (r.categoria!==category) return;
     if (r.key < startKey || r.key > endKey) return;
     const idx = x.indexOf(r.key);
-    if (idx>=0){
-      fatur[idx] += r.valor;
-      vol[idx]   += r.quantidade;
-    }
+    if (idx>=0){ fatur[idx]+=r.valor; vol[idx]+=r.quantidade; }
   });
   return { x, fatur, vol };
 }
 
-// ========================= UI (Cards) =========================
+// ========= UI build (unchanged visual) =========
 function buildCategoryCards(containerId, categories){
   const container = document.getElementById(containerId);
   container.innerHTML = categories.map(cat=>{
@@ -246,28 +210,22 @@ function buildCategoryCards(containerId, categories){
       </div>`;
   }).join("");
 
-  // Colapsáveis
+  // Collapsibles
   container.querySelectorAll(".titlebar.collapsible").forEach(tb=>{
     tb.addEventListener("click", ()=>{
       const id = tb.getAttribute("data-target");
       const wrap = document.getElementById(id);
       const open = (!wrap.style.maxHeight || wrap.style.maxHeight==="0px");
-      if (open){
-        wrap.style.maxHeight = wrap.scrollHeight + "px";
-      } else {
-        wrap.style.maxHeight = "0";
-      }
+      wrap.style.maxHeight = open ? wrap.scrollHeight + "px" : "0";
       const caret = tb.querySelector(".caret");
       if (caret) caret.textContent = open ? "▼" : "▶";
-      if (open){
-        tb.scrollIntoView({behavior:"smooth", block:"start"});
-      }
+      if (open){ tb.scrollIntoView({behavior:"smooth", block:"start"}); }
     });
   });
 }
 
-function monthList(){ return [...Array(12)].map((_,i)=>({val:i+1, label:z2(i+1)})); }
-
+// ========= Period controls & metrics =========
+function monthList(){ return [...Array(12)].map((_,i)=>({val:i+1,label:z2(i+1)})); }
 function populateMonthYearSelectors(category){
   const safe = category.replace(/\s+/g,'-').toLowerCase();
   const fromM = document.getElementById(`from-month-${safe}`);
@@ -276,265 +234,155 @@ function populateMonthYearSelectors(category){
   const toY   = document.getElementById(`to-year-${safe}`);
 
   const keys = keysForCategory(ALL_ROWS, category);
-  if (!keys.length){
-    [fromM, fromY, toM, toY].forEach(el=> el.innerHTML = "");
-    return {minKey:"", maxKey:""};
-  }
-  // anos disponíveis
+  if (!keys.length){ [fromM,fromY,toM,toY].forEach(el=>el.innerHTML=""); return {minKey:"",maxKey:""}; }
+
   const years = uniqueSorted(keys.map(k=>+k.split("-")[0]));
-  // meses 01..12
   const months = monthList();
 
-  const fill = (sel, items, getV, getL)=>{
-    sel.innerHTML = ""; items.forEach(it=>{
-      const o = document.createElement("option");
-      o.value = getV(it); o.textContent = getL(it);
-      sel.appendChild(o);
-    });
-  };
+  const fill=(sel,items,getV,getL)=>{ sel.innerHTML=""; items.forEach(it=>{ const o=document.createElement("option"); o.value=getV(it); o.textContent=getL(it); sel.appendChild(o); }); };
   fill(fromM, months, m=>m.val, m=>m.label);
   fill(toM,   months, m=>m.val, m=>m.label);
-  fill(fromY, years,  y=>y,     y=>y);
-  fill(toY,   years,  y=>y,     y=>y);
+  fill(fromY, years,  y=>y, y=>y);
+  fill(toY,   years,  y=>y, y=>y);
 
-  const minKey = keys[0];
-  const maxKey = keys[keys.length-1];
-  // padrão: últimos 12 meses (se houver)
-  let [yf, mf] = minKey.split("-").map(Number);
-  let [yt, mt] = maxKey.split("-").map(Number);
-  if (keys.length>12){
-    // retrocede 11 meses a partir do fim
-    const startIdx = Math.max(0, keys.length - 12);
-    [yf, mf] = keys[startIdx].split("-").map(Number);
-  }
-  fromM.value = mf; fromY.value = yf;
-  toM.value   = mt; toY.value   = yt;
-
-  return {minKey, maxKey};
+  const minKey = keys[0], maxKey = keys[keys.length-1];
+  let [yf,mf] = minKey.split("-").map(Number);
+  let [yt,mt] = maxKey.split("-").map(Number);
+  if (keys.length>12){ [yf,mf] = keys[keys.length-12].split("-").map(Number); }
+  fromM.value=mf; fromY.value=yf; toM.value=mt; toY.value=yt;
+  return {minKey,maxKey};
 }
-
 function currentRangeFromSelectors(category){
   const safe = category.replace(/\s+/g,'-').toLowerCase();
-  const fromM = +document.getElementById(`from-month-${safe}`).value;
-  const fromY = +document.getElementById(`from-year-${safe}`).value;
-  const toM   = +document.getElementById(`to-month-${safe}`).value;
-  const toY   = +document.getElementById(`to-year-${safe}`).value;
-  let startKey = ymToKey(fromY, fromM);
-  let endKey   = ymToKey(toY, toM);
-  if (startKey > endKey){ // corrige inversão
-    [startKey, endKey] = [endKey, startKey];
-  }
-  return {startKey, endKey};
+  const fromM=+document.getElementById(`from-month-${safe}`).value;
+  const fromY=+document.getElementById(`from-year-${safe}`).value;
+  const toM  =+document.getElementById(`to-month-${safe}`).value;
+  const toY  =+document.getElementById(`to-year-${safe}`).value;
+  let startKey=ymToKey(fromY,fromM), endKey=ymToKey(toY,toM);
+  if (startKey>endKey) [startKey,endKey]=[endKey,startKey];
+  return {startKey,endKey};
 }
-
 function setQuickRange(category, tag){
-  const safe = category.replace(/\s+/g,'-').toLowerCase();
-  const keys = keysForCategory(ALL_ROWS, category);
-  if (!keys.length) return;
-
+  const keys = keysForCategory(ALL_ROWS, category); if (!keys.length) return;
   const maxKey = keys[keys.length-1];
-  let [y, m] = maxKey.split("-").map(Number);
-
-  function minusMonths(y,m,k){
-    let total = y*12 + (m-1) - k;
-    let ny = Math.floor(total/12);
-    let nm = (total % 12) + 1; if (nm<=0){ nm+=12; ny--; }
-    return {y:ny, m:nm};
-  }
-
-  let kBack = null;
-  if (tag==="3M") kBack = 2;
-  else if (tag==="6M") kBack = 5;
-  else if (tag==="1A") kBack = 11;
-  else if (tag==="5A") kBack = 59;
-
+  let [y,m]=maxKey.split("-").map(Number);
+  const back = { "3M":2, "6M":5, "1A":11, "5A":59 }[tag] ?? null;
   let startKey, endKey;
-  if (tag==="ALL"){
-    startKey = keys[0];
-    endKey   = maxKey;
-  } else {
-    const {y:ys, m:ms} = minusMonths(y, m, Math.min(kBack, keys.length-1));
-    startKey = ymToKey(ys, ms);
-    endKey   = maxKey;
-    // se o startKey for anterior ao primeiro disponível, ajusta
-    if (startKey < keys[0]) startKey = keys[0];
+  if (tag==="ALL"){ startKey=keys[0]; endKey=maxKey; }
+  else{
+    const minus=(y,m,k)=>{let t=y*12+(m-1)-k;let ny=Math.floor(t/12);let nm=(t%12)+1;if(nm<=0){nm+=12;ny--}return{y:ny,m:nm}};
+    const s = minus(y,m,Math.min(back,keys.length-1));
+    startKey=ymToKey(s.y,s.m); if (startKey<keys[0]) startKey=keys[0]; endKey=maxKey;
   }
-
-  const [ys, ms] = startKey.split("-").map(Number);
-  const [ye, me] = endKey.split("-").map(Number);
-  document.getElementById(`from-month-${safe}`).value = ms;
-  document.getElementById(`from-year-${safe}`).value  = ys;
-  document.getElementById(`to-month-${safe}`).value   = me;
-  document.getElementById(`to-year-${safe}`).value    = ye;
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  const [ys,ms]=startKey.split("-").map(Number), [ye,me]=endKey.split("-").map(Number);
+  document.getElementById(`from-month-${safe}`).value=ms;
+  document.getElementById(`from-year-${safe}`).value=ys;
+  document.getElementById(`to-month-${safe}`).value=me;
+  document.getElementById(`to-year-${safe}`).value=ye;
 }
-
-// Métricas
 function computeMetrics(series){
-  const fat = series.fatur;
-  const vol = series.vol;
-
-  const meanFat = fat.length ? fat.reduce((a,b)=>a+b,0)/fat.length : 0;
-  const meanVol = vol.length ? vol.reduce((a,b)=>a+b,0)/vol.length : 0;
-
-  function pctChange(arr){
+  const fat=series.fatur, vol=series.vol;
+  const meanFat = fat.length? fat.reduce((a,b)=>a+b,0)/fat.length : 0;
+  const meanVol = vol.length? vol.reduce((a,b)=>a+b,0)/vol.length : 0;
+  const pctChange = arr=>{
     const firstIdx = arr.findIndex(v=>v!==0);
     const lastIdx  = arr.length-1 - [...arr].reverse().findIndex(v=>v!==0);
-    if (firstIdx<0 || lastIdx<0 || firstIdx>lastIdx) return NaN;
-    const a = arr[firstIdx], b = arr[lastIdx];
-    if (a===0) return NaN;
+    if (firstIdx<0||lastIdx<0||firstIdx>lastIdx) return NaN;
+    const a=arr[firstIdx], b=arr[lastIdx]; if (a===0) return NaN;
     return ((b-a)/Math.abs(a))*100;
-  }
-  const varFat = pctChange(fat);
-  const varVol = pctChange(vol);
-
-  const sdFat = stdev(fat);
-  const sdVol = stdev(vol);
-
-  return {
-    meanFat, varFat, sdFat,
-    meanVol, varVol, sdVol
   };
+  return { meanFat, varFat:pctChange(fat), sdFat:stdev(fat), meanVol, varVol:pctChange(vol), sdVol:stdev(vol) };
 }
-
-function renderMetrics(category, metrics){
-  const safe = category.replace(/\s+/g,'-').toLowerCase();
-  const mf = document.getElementById(`mfat-${safe}`);
-  const vf = document.getElementById(`vfat-${safe}`);
-  const sf = document.getElementById(`sfat-${safe}`);
-  const mv = document.getElementById(`mvol-${safe}`);
-  const vv = document.getElementById(`vvol-${safe}`);
-  const sv = document.getElementById(`svol-${safe}`);
-
-  mf.textContent = brMoney(metrics.meanFat);
-  vf.textContent = isNaN(metrics.varFat) ? '—' : brPerc(metrics.varFat);
-  sf.textContent = brMoney(metrics.sdFat);
-
-  mv.textContent = brInt(metrics.meanVol);
-  vv.textContent = isNaN(metrics.varVol) ? '—' : brPerc(metrics.varVol);
-  sv.textContent = brInt(metrics.sdVol);
+function renderMetrics(category, m){
+  const safe=category.replace(/\s+/g,'-').toLowerCase();
+  const byId=id=>document.getElementById(`${id}-${safe}`);
+  byId('mfat').textContent=brMoney(m.meanFat);
+  byId('vfat').textContent=isNaN(m.varFat)?'—':brPerc(m.varFat);
+  byId('sfat').textContent=brMoney(m.sdFat);
+  byId('mvol').textContent=brInt(m.meanVol);
+  byId('vvol').textContent=isNaN(m.varVol)?'—':brPerc(m.varVol);
+  byId('svol').textContent=brInt(m.sdVol);
 }
 
 function drawCategoryChart(category){
-  const safe = category.replace(/\s+/g,'-').toLowerCase();
-  const chartEl = document.getElementById(`chart-${safe}`);
-  const noDataEl= document.getElementById(`nodata-${safe}`);
-
-  const {startKey, endKey} = currentRangeFromSelectors(category);
-  const series = aggregateCategoryMonthly(ALL_ROWS, category, startKey, endKey);
-
-  const hasData = series.fatur.some(v=>v!==0) || series.vol.some(v=>v!==0);
-  if (!hasData){
-    Plotly.purge(chartEl);
-    noDataEl.style.display = "block";
-    adjustOpenHeights();
-    return;
-  }
-  noDataEl.style.display = "none";
-
-  const traceFat = {
-    x: series.x.map(keyToLabel),
-    y: series.fatur,
-    mode: 'lines+markers',
-    type: 'scatter',
-    name: 'Faturamento',
-    line: {color: COLOR_FAT, width: 3},
-    marker: {color: COLOR_FAT},
-    yaxis: 'y'
-  };
-  const traceVol = {
-    x: series.x.map(keyToLabel),
-    y: series.vol,
-    mode: 'lines+markers',
-    type: 'scatter',
-    name: 'Volume',
-    line: {color: COLOR_VOL, width: 2},
-    marker: {color: COLOR_VOL},
-    yaxis: 'y2'
-  };
-
-  const layout = {
+  const safe=category.replace(/\s+/g,'-').toLowerCase();
+  const chartEl=document.getElementById(`chart-${safe}`);
+  const noDataEl=document.getElementById(`nodata-${safe}`);
+  const {startKey,endKey}=currentRangeFromSelectors(category);
+  const series=aggregateCategoryMonthly(ALL_ROWS, category, startKey, endKey);
+  const hasData = series.fatur.some(v=>v!==0)||series.vol.some(v=>v!==0);
+  if (!hasData){ Plotly.purge(chartEl); noDataEl.style.display="block"; adjustOpenHeights(); return; }
+  noDataEl.style.display="none";
+  const traceFat={x:series.x.map(keyToLabel),y:series.fatur,mode:'lines+markers',type:'scatter',name:'Faturamento',line:{color:COLOR_FAT,width:3},marker:{color:COLOR_FAT},yaxis:'y'};
+  const traceVol={x:series.x.map(keyToLabel),y:series.vol,mode:'lines+markers',type:'scatter',name:'Volume',line:{color:COLOR_VOL,width:2},marker:{color:COLOR_VOL},yaxis:'y2'};
+  Plotly.react(chartEl,[traceFat,traceVol],{
     margin:{l:55,r:55,t:10,b:48},
-    xaxis:{tickangle:-45, automargin:true},
-    yaxis:{title:'Faturamento (R$)', automargin:true, rangemode:'tozero', autorange:true},
-    yaxis2:{title:'Volume (pcs)', overlaying:'y', side:'right', rangemode:'tozero', autorange:true},
-    legend:{orientation:'h', y:-0.2, x:0},
-  };
-  Plotly.react(chartEl, [traceFat, traceVol], layout, {responsive:true});
-
-  // Métricas
-  const metrics = computeMetrics(series);
-  renderMetrics(category, metrics);
-
-  // Ajusta altura do card aberto ao conteúdo
+    xaxis:{tickangle:-45,automargin:true},
+    yaxis:{title:'Faturamento (R$)',automargin:true,rangemode:'tozero',autorange:true},
+    yaxis2:{title:'Volume (pcs)',overlaying:'y',side:'right',rangemode:'tozero',autorange:true},
+    legend:{orientation:'h',y:-0.2,x:0}
+  },{responsive:true});
+  renderMetrics(category, computeMetrics(series));
   adjustOpenHeights();
 }
-
 function adjustOpenHeights(){
   document.querySelectorAll(".card-wrap").forEach(w=>{
-    if (w.style.maxHeight && w.style.maxHeight!=="0px"){
-      w.style.maxHeight = w.scrollHeight + "px";
-    }
+    if (w.style.maxHeight && w.style.maxHeight!=="0px"){ w.style.maxHeight = w.scrollHeight + "px"; }
   });
 }
-
+function monthList(){ return [...Array(12)].map((_,i)=>({val:i+1,label:z2(i+1)})); }
 function initLocalControls(category){
-  const safe = category.replace(/\s+/g,'-').toLowerCase();
-  // Preenche selects
+  const safe=category.replace(/\s+/g,'-').toLowerCase();
   populateMonthYearSelectors(category);
-  // Botões rápidos
-  const btns = document.querySelectorAll(`#btns-${safe} .btn`);
-  btns.forEach(b=>{
-    b.addEventListener('click', ()=>{
-      btns.forEach(x=>x.classList.remove('primary'));
-      b.classList.add('primary');
-      setQuickRange(category, b.dataset.range);
-      drawCategoryChart(category);
-    });
-  });
-  // Botão aplicar
-  document.getElementById(`apply-${safe}`).addEventListener('click', ()=>{
+  const btns=document.querySelectorAll(`#btns-${safe} .btn`);
+  btns.forEach(b=>b.addEventListener('click',()=>{
+    btns.forEach(x=>x.classList.remove('primary'));
+    b.classList.add('primary');
+    setQuickRange(category, b.dataset.range);
+    drawCategoryChart(category);
+  }));
+  document.getElementById(`apply-${safe}`).addEventListener('click',()=>{
     btns.forEach(x=>x.classList.remove('primary'));
     drawCategoryChart(category);
   });
-  // Primeiro draw
   drawCategoryChart(category);
 }
 
-// ========================= BOOTSTRAP =========================
+// ========= Bootstrap with robust transform =========
 function init(){
-  Papa.parse(CSV_URL, {
+  Papa.parse(CSV_URL,{
     download:true,
     header:true,
     skipEmptyLines:true,
-    transformHeader: h => (h || '').trim(),
+    transformHeader: h => (h||'').trim(),
     transform: v => {
-      // normaliza números no ato da leitura
-      if (typeof v === 'string' && /^-?\d[\d.,]*$/.test(v.trim())){
-        const normalized = v.trim().replace(/\./g,'').replace(',','.');
-        const n = Number(normalized);
-        return isFinite(n) ? n : v.trim();
+      if (typeof v === 'string'){
+        const n = normalizeNumericString(v);
+        return n===null ? v.trim() : n;
       }
-      return (typeof v === 'string') ? v.trim() : v;
+      return v;
     },
     complete:(res)=>{
       const rows = res.data || [];
       ALL_ROWS = normalizeRows(rows);
 
-      // Monta cards
+      // === Debug check for 10/2025 totals (all categories) ===
+      const check = ALL_ROWS.filter(r=>r.ano===2025 && r.mes===10)
+                            .reduce((acc,r)=>({vol:acc.vol + r.quantidade, fat:acc.fat + r.valor}), {vol:0,fat:0});
+      console.log("[CHECK 10/2025] Volume:", check.vol, "Faturamento:", check.fat);
+      // Expect ~ 28914 and ~ 1129467.39
+
       buildCategoryCards("cats-container", CATEGORIES);
-      // Inicializa controles por card
       CATEGORIES.forEach(cat=> initLocalControls(cat));
     },
     error:(err)=>{
-      document.getElementById("cats-container").innerHTML = "<p>Erro ao carregar CSV.</p>";
+      document.getElementById("cats-container").innerHTML="<p>Erro ao carregar CSV.</p>";
       console.error(err);
     }
   });
-
-  // Mantém responsivo e ajusta alturas quando a janela muda
   window.addEventListener("resize", adjustOpenHeights);
 }
-
 init();
 </script>
 </body>
