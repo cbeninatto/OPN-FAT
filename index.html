@@ -1,587 +1,237 @@
-<!-- v5.3.1 | Based on Índices Moveleiro Dashboard v5.2.3 | © Cesar Beninatto -->
+<!-- v5.3.2 | Categorical X-Axis Standard (no auto dates) | © Cesar Beninatto -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Openfield Moveleiro Performance — v5.3.1</title>
+<title>Openfield Moveleiro Performance — v5.3.2</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.plot.ly/plotly-latest.min.js?v=5.3.1"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js?v=5.3.2"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 <style>
-  :root{
-    --bg:#dfe1e1; --card:#fff; --text:#000; --accent:#f5b95f; --accent-b:#e5be74;
-    --shadow:0 3px 10px rgba(0,0,0,.08);
-    /* Base palette (kept for non-stacked charts) */
-    --green:#43a047; --orange:#fb8c00; --red:#e53935; --blue:#1e88e5; --purple:#8e24aa; --teal:#00bfa6;
-  }
+  :root{ --bg:#dfe1e1; --card:#fff; --text:#000; --accent:#f5b95f; --accent-b:#e5be74; --shadow:0 3px 10px rgba(0,0,0,.08); --blue:#1e88e5; --orange:#fb8c00; }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
   .wrap{max-width:1400px;margin:0 auto;padding:18px 16px 56px}
-  /* Header */
-  .topbar{
-    background:#000;color:#fff;border-bottom:4px solid var(--accent);
-    padding:12px 16px;border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
-  }
+  .topbar{background:#000;color:#fff;border-bottom:4px solid var(--accent);padding:12px 16px;border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
   .tleft{font-weight:700;font-size:1.1rem}
-  .tright{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .rbtn{
-    background:var(--accent);color:#000;border:1px solid var(--accent-b);
-    padding:6px 12px;border-radius:10px;font-weight:600;cursor:pointer;font-size:14px
-  }
+  .tright{display:flex;gap:8px;align-items:center}
+  .rbtn{background:var(--accent);color:#000;border:1px solid var(--accent-b);padding:6px 12px;border-radius:10px;font-weight:600;cursor:pointer;font-size:14px}
   .rbtn:hover,.rbtn.active{background:#000;color:#fff;border-color:#000}
-  .export{background:#fff;color:#000;border:1px solid #333}
-  /* Sections */
   .section{margin:18px 0}
-  .titlebar{
-    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;font-weight:700;
-    display:flex;align-items:center;justify-content:space-between;user-select:none;border-left:6px solid var(--accent);
-  }
+  .titlebar{background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;font-weight:700;display:flex;align-items:center;justify-content:space-between;border-left:6px solid var(--accent)}
   .titlebar.collapsible{cursor:pointer}
-  .caret{font-size:0.9rem;opacity:.9}
+  .caret{font-size:.9rem;opacity:.9}
   .card-wrap{overflow:hidden;transition:max-height .35s ease-in-out}
   .card{background:var(--card);border-radius:0 0 10px 10px;box-shadow:var(--shadow);padding:14px}
-  /* Controls */
   .rangebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 10px}
-  .rangebar input[type="month"]{padding:6px 8px;border-radius:8px;border:1px solid #ccc}
-  /* Metrics */
+  .rangebar input[type=month]{padding:6px 8px;border-radius:8px;border:1px solid #ccc}
   .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0 2px}
   .metric{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:8px 10px}
   .metric .k{font-size:.85rem;color:#444}
   .metric .v{font-weight:700;font-size:1.05rem}
-  /* Charts */
   .chart{width:100%;height:520px}
-  @media (max-width:720px){
-    .chart{height:460px}
-    .metrics{grid-template-columns:1fr}
-  }
-  /* Loading overlay */
-  #loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .25s ease;opacity:1;pointer-events:auto}
+  @media (max-width:720px){.chart{height:460px}.metrics{grid-template-columns:1fr}}
+  #loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .25s ease;opacity:1}
   #loading-overlay.hidden{opacity:0;pointer-events:none}
   .loading-box{background:#fff;border-radius:12px;padding:18px 22px;box-shadow:var(--shadow);border:2px solid var(--accent);display:flex;gap:12px;align-items:center}
   .spinner{width:18px;height:18px;border:3px solid #eee;border-top-color:#000;border-radius:50%;animation:spin 1s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .loading-text{font-weight:700}
 </style>
 </head>
 <body>
-  <div id="loading-overlay">
-    <div class="loading-box">
-      <div class="spinner"></div>
-      <div class="loading-text">Carregando dados…</div>
+<div id="loading-overlay"><div class="loading-box"><div class="spinner"></div><div class="loading-text">Carregando dados…</div></div></div>
+<div class="wrap">
+  <div class="topbar">
+    <div class="tleft">OPENFIELD MOVELEIRO PERFORMANCE — v5.3.2</div>
+    <div class="tright"><span id="updated" style="color:#fff;opacity:.9">Atualizado: —</span></div>
+  </div>
+
+  <!-- Visão Geral -->
+  <div class="section">
+    <div class="titlebar">📊 Visão Geral (Valor e Quantidade)</div>
+    <div class="card-wrap" style="max-height:none;overflow:visible">
+      <div class="card">
+        <div class="rangebar" id="range-total">
+          <button class="rbtn" data-target="chart-total" data-range="3M">3M</button>
+          <button class="rbtn" data-target="chart-total" data-range="6M">6M</button>
+          <button class="rbtn" data-target="chart-total" data-range="1A">1A</button>
+          <button class="rbtn" data-target="chart-total" data-range="5A">5A</button>
+          <button class="rbtn active" data-target="chart-total" data-range="TUDO">Tudo</button>
+          <span style="margin-left:8px;">De</span>
+          <input type="month" id="from-total"/>
+          <span>até</span>
+          <input type="month" id="to-total"/>
+          <button class="rbtn" onclick="applyCustom('chart-total','from-total','to-total','total')">Aplicar</button>
+          <button class="rbtn" onclick="resetRange('chart-total','total')">Reset</button>
+        </div>
+        <div class="metrics" id="metrics-total">
+          <div class="metric"><div class="k">Variação total</div><div class="v" id="var-total">—</div></div>
+          <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-total">—</div></div>
+          <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-total">—</div></div>
+        </div>
+        <div class="chart" id="chart-total"></div>
+      </div>
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="topbar">
-      <div class="tleft">OPENFIELD MOVELEIRO PERFORMANCE — v5.3.1</div>
-      <div class="tright">
-        <span id="updated" style="color:#fff;opacity:.9">Atualizado: —</span>
-        <button class="rbtn export" title="placeholder">Exportar PDF</button>
+  <!-- Faturamento por Linha (Valor) -->
+  <div class="section">
+    <div class="titlebar collapsible" data-target="card-fatlin"><span>💰 Faturamento por Linha (Valor)</span><span class="caret">▶</span></div>
+    <div id="card-fatlin" class="card-wrap" style="max-height:0"><div class="card">
+      <div class="rangebar" id="range-fatlin">
+        <button class="rbtn" data-target="chart-fatlin" data-range="3M">3M</button>
+        <button class="rbtn" data-target="chart-fatlin" data-range="6M">6M</button>
+        <button class="rbtn" data-target="chart-fatlin" data-range="1A">1A</button>
+        <button class="rbtn" data-target="chart-fatlin" data-range="5A">5A</button>
+        <button class="rbtn active" data-target="chart-fatlin" data-range="TUDO">Tudo</button>
+        <span style="margin-left:8px;">De</span>
+        <input type="month" id="from-fatlin"/>
+        <span>até</span>
+        <input type="month" id="to-fatlin"/>
+        <button class="rbtn" onclick="applyCustom('chart-fatlin','from-fatlin','to-fatlin','fatlin')">Aplicar</button>
+        <button class="rbtn" onclick="resetRange('chart-fatlin','fatlin')">Reset</button>
       </div>
-    </div>
-
-    <!-- Visão Geral -->
-    <div class="section">
-      <div class="titlebar">📊 Visão Geral (Valor e Quantidade)</div>
-      <div class="card-wrap" style="max-height:none;overflow:visible">
-        <div class="card">
-          <div class="rangebar" id="range-total">
-            <button class="rbtn" data-target="chart-total" data-range="3M">3M</button>
-            <button class="rbtn" data-target="chart-total" data-range="6M">6M</button>
-            <button class="rbtn" data-target="chart-total" data-range="1A">1A</button>
-            <button class="rbtn" data-target="chart-total" data-range="5A">5A</button>
-            <button class="rbtn active" data-target="chart-total" data-range="TUDO">Tudo</button>
-            <span style="margin-left:8px;">De</span>
-            <input type="month" id="from-total"/>
-            <span>até</span>
-            <input type="month" id="to-total"/>
-            <button class="rbtn" onclick="applyCustom('chart-total','from-total','to-total','total')">Aplicar</button>
-            <button class="rbtn" onclick="resetRange('chart-total','total')">Reset</button>
-          </div>
-
-          <div class="metrics" id="metrics-total">
-            <div class="metric"><div class="k">Variação total</div><div class="v" id="var-total">—</div></div>
-            <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-total">—</div></div>
-            <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-total">—</div></div>
-          </div>
-
-          <div class="chart" id="chart-total"></div>
-        </div>
+      <div class="metrics" id="metrics-fatlin">
+        <div class="metric"><div class="k">Variação total</div><div class="v" id="var-fatlin">—</div></div>
+        <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-fatlin">—</div></div>
+        <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-fatlin">—</div></div>
       </div>
-    </div>
+      <div class="chart" id="chart-fatlin"></div>
+    </div></div>
+  </div>
 
-    <!-- Faturamento por Linha (Valor) -->
-    <div class="section">
-      <div class="titlebar collapsible" data-target="card-fatlin"><span>💰 Faturamento por Linha (Valor)</span><span class="caret">▶</span></div>
-      <div id="card-fatlin" class="card-wrap" style="max-height:0">
-        <div class="card">
-          <div class="rangebar" id="range-fatlin">
-            <button class="rbtn" data-target="chart-fatlin" data-range="3M">3M</button>
-            <button class="rbtn" data-target="chart-fatlin" data-range="6M">6M</button>
-            <button class="rbtn" data-target="chart-fatlin" data-range="1A">1A</button>
-            <button class="rbtn" data-target="chart-fatlin" data-range="5A">5A</button>
-            <button class="rbtn active" data-target="chart-fatlin" data-range="TUDO">Tudo</button>
-            <span style="margin-left:8px;">De</span>
-            <input type="month" id="from-fatlin"/>
-            <span>até</span>
-            <input type="month" id="to-fatlin"/>
-            <button class="rbtn" onclick="applyCustom('chart-fatlin','from-fatlin','to-fatlin','fatlin')">Aplicar</button>
-            <button class="rbtn" onclick="resetRange('chart-fatlin','fatlin')">Reset</button>
-          </div>
-
-          <div class="metrics" id="metrics-fatlin">
-            <div class="metric"><div class="k">Variação total</div><div class="v" id="var-fatlin">—</div></div>
-            <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-fatlin">—</div></div>
-            <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-fatlin">—</div></div>
-          </div>
-
-          <div class="chart" id="chart-fatlin"></div>
-        </div>
+  <!-- Volume por Linha (Quantidade) -->
+  <div class="section">
+    <div class="titlebar collapsible" data-target="card-vollin"><span>📦 Volume por Linha (Quantidade)</span><span class="caret">▶</span></div>
+    <div id="card-vollin" class="card-wrap" style="max-height:0"><div class="card">
+      <div class="rangebar" id="range-vollin">
+        <button class="rbtn" data-target="chart-vollin" data-range="3M">3M</button>
+        <button class="rbtn" data-target="chart-vollin" data-range="6M">6M</button>
+        <button class="rbtn" data-target="chart-vollin" data-range="1A">1A</button>
+        <button class="rbtn" data-target="chart-vollin" data-range="5A">5A</button>
+        <button class="rbtn active" data-target="chart-vollin" data-range="TUDO">Tudo</button>
+        <span style="margin-left:8px;">De</span>
+        <input type="month" id="from-vollin"/>
+        <span>até</span>
+        <input type="month" id="to-vollin"/>
+        <button class="rbtn" onclick="applyCustom('chart-vollin','from-vollin','to-vollin','vollin')">Aplicar</button>
+        <button class="rbtn" onclick="resetRange('chart-vollin','vollin')">Reset</button>
       </div>
-    </div>
-
-    <!-- Volume por Linha (Quantidade) -->
-    <div class="section">
-      <div class="titlebar collapsible" data-target="card-vollin"><span>📦 Volume por Linha (Quantidade)</span><span class="caret">▶</span></div>
-      <div id="card-vollin" class="card-wrap" style="max-height:0">
-        <div class="card">
-          <div class="rangebar" id="range-vollin">
-            <button class="rbtn" data-target="chart-vollin" data-range="3M">3M</button>
-            <button class="rbtn" data-target="chart-vollin" data-range="6M">6M</button>
-            <button class="rbtn" data-target="chart-vollin" data-range="1A">1A</button>
-            <button class="rbtn" data-target="chart-vollin" data-range="5A">5A</button>
-            <button class="rbtn active" data-target="chart-vollin" data-range="TUDO">Tudo</button>
-            <span style="margin-left:8px;">De</span>
-            <input type="month" id="from-vollin"/>
-            <span>até</span>
-            <input type="month" id="to-vollin"/>
-            <button class="rbtn" onclick="applyCustom('chart-vollin','from-vollin','to-vollin','vollin')">Aplicar</button>
-            <button class="rbtn" onclick="resetRange('chart-vollin','vollin')">Reset</button>
-          </div>
-
-          <div class="metrics" id="metrics-vollin">
-            <div class="metric"><div class="k">Variação total</div><div class="v" id="var-vollin">—</div></div>
-            <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-vollin">—</div></div>
-            <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-vollin">—</div></div>
-          </div>
-
-          <div class="chart" id="chart-vollin"></div>
-        </div>
+      <div class="metrics" id="metrics-vollin">
+        <div class="metric"><div class="k">Variação total</div><div class="v" id="var-vollin">—</div></div>
+        <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-vollin">—</div></div>
+        <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-vollin">—</div></div>
       </div>
-    </div>
+      <div class="chart" id="chart-vollin"></div>
+    </div></div>
+  </div>
 
-    <!-- Participação por Linha (%) -->
-    <div class="section">
-      <div class="titlebar collapsible" data-target="card-share"><span>📊 Participação por Linha (%)</span><span class="caret">▶</span></div>
-      <div id="card-share" class="card-wrap" style="max-height:0">
-        <div class="card">
-          <div class="rangebar" id="range-share">
-            <button class="rbtn" data-target="chart-share" data-range="3M">3M</button>
-            <button class="rbtn" data-target="chart-share" data-range="6M">6M</button>
-            <button class="rbtn" data-target="chart-share" data-range="1A">1A</button>
-            <button class="rbtn" data-target="chart-share" data-range="5A">5A</button>
-            <button class="rbtn active" data-target="chart-share" data-range="TUDO">Tudo</button>
-            <span style="margin-left:8px;">Modo:</span>
-            <button class="rbtn" id="share-mode-valor" onclick="setShareMode('valor')">Valor</button>
-            <button class="rbtn" id="share-mode-quantidade" onclick="setShareMode('quantidade')">Quantidade</button>
-          </div>
-          <div class="chart" id="chart-share"></div>
-        </div>
+  <!-- Participação por Linha (%) -->
+  <div class="section">
+    <div class="titlebar collapsible" data-target="card-share"><span>📊 Participação por Linha (%)</span><span class="caret">▶</span></div>
+    <div id="card-share" class="card-wrap" style="max-height:0"><div class="card">
+      <div class="rangebar" id="range-share">
+        <button class="rbtn" data-target="chart-share" data-range="3M">3M</button>
+        <button class="rbtn" data-target="chart-share" data-range="6M">6M</button>
+        <button class="rbtn" data-target="chart-share" data-range="1A">1A</button>
+        <button class="rbtn" data-target="chart-share" data-range="5A">5A</button>
+        <button class="rbtn active" data-target="chart-share" data-range="TUDO">Tudo</button>
+        <span style="margin-left:8px;">Modo:</span>
+        <button class="rbtn" onclick="setShareMode('valor')">Valor</button>
+        <button class="rbtn" onclick="setShareMode('quantidade')">Quantidade</button>
       </div>
-    </div>
+      <div class="chart" id="chart-share"></div>
+    </div></div>
+  </div>
 
-    <!-- Desempenho por Linha (cards) -->
-    <div class="section">
-      <div class="titlebar collapsible" data-target="card-cats"><span>📈 Desempenho por Linha</span><span class="caret">▶</span></div>
-      <div id="card-cats" class="card-wrap" style="max-height:0">
-        <div class="card" id="cats-container"></div>
-      </div>
+  <!-- Desempenho por Linha (cards) -->
+  <div class="section">
+    <div class="titlebar collapsible" data-target="card-cats"><span>📈 Desempenho por Linha</span><span class="caret">▶</span></div>
+    <div id="card-cats" class="card-wrap" style="max-height:0">
+      <div class="card" id="cats-container"></div>
     </div>
   </div>
+</div>
 
 <script>
-/* ---------------------- Constants & helpers ---------------------- */
+// =================== CATEGORICAL AXIS STANDARD =====================
 const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
-/* Arizona Sunset palette for stacked bar */
-const COLORS={
-  "Corrediça Oculta":"#d64b4b",      // deep red
-  "Corrediça Telescópica":"#f57c00", // orange
-  "Dobradiças":"#fdd835",            // sun gold
-  "Articuladores":"#81c784",        // sage green
-  "Rodízio":"#4db6ac",              // teal
-  "Pulsadores":"#9575cd",           // violet dusk
-  "Acessórios":"#bcaaa4"            // sand taupe
-};
-const ABBR={
-  "Corrediça Oculta":"ESCON",
-  "Corrediça Telescópica":"TELES",
-  "Dobradiças":"DOBRA",
-  "Articuladores":"ARTIC",
-  "Rodízio":"RODIZ",
-  "Pulsadores":"PULSA",
-  "Acessórios":"ACESS"
-};
-const isMobile=()=>window.innerWidth<720;
-function startOfMonth(d){return new Date(d.getFullYear(),d.getMonth(),1);} 
-function endOfMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0);} 
-function addMonths(d,m){return new Date(d.getFullYear(),d.getMonth()+m,1);} 
-function ymToDate(s){if(!s)return null;const p=s.split("-");if(p.length!==2)return null;return new Date(parseInt(p[0]),parseInt(p[1])-1,1);} 
-function fmtBRL(n){return "R$ "+n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+// Arizona Sunset palette (for stacked share)
+const COLORS={"Corrediça Oculta":"#d64b4b","Corrediça Telescópica":"#f57c00","Dobradiças":"#fdd835","Articuladores":"#81c784","Rodízio":"#4db6ac","Pulsadores":"#9575cd","Acessórios":"#bcaaa4"};
+const ABBR={"Corrediça Oculta":"ESCON","Corrediça Telescópica":"TELES","Dobradiças":"DOBRA","Articuladores":"ARTIC","Rodízio":"RODIZ","Pulsadores":"PULSA","Acessórios":"ACESS"};
+const isMobile=()=>innerWidth<720;
 
-/* Collapsibles with automatic height + Plotly resize */
-function expandWrap(wrap){
-  wrap.style.overflow='hidden';
-  wrap.style.maxHeight='0px';
-  const target=wrap.scrollHeight;
-  wrap.style.maxHeight=target+'px';
-  wrap.addEventListener('transitionend',function te(){
-    wrap.removeEventListener('transitionend',te);
-    wrap.style.maxHeight='none';
-    wrap.style.overflow='visible';
-    wrap.querySelectorAll('.chart').forEach(ch=>Plotly.Plots.resize(ch));
-  },{once:true});
-}
-function collapseWrap(wrap){
-  if(getComputedStyle(wrap).maxHeight==='none'){
-    wrap.style.maxHeight=wrap.scrollHeight+'px';
-    wrap.offsetHeight;
-  }
-  wrap.style.overflow='hidden';
-  wrap.style.maxHeight='0px';
-}
+// ---- Collapsible helpers (auto height) ----
+function expandWrap(wrap){wrap.style.overflow='hidden';wrap.style.maxHeight='0px';const h=wrap.scrollHeight;wrap.style.maxHeight=h+'px';wrap.addEventListener('transitionend',function te(){wrap.removeEventListener('transitionend',te);wrap.style.maxHeight='none';wrap.style.overflow='visible';wrap.querySelectorAll('.chart').forEach(c=>Plotly.Plots.resize(c));},{once:true});}
+function collapseWrap(wrap){if(getComputedStyle(wrap).maxHeight==='none'){wrap.style.maxHeight=wrap.scrollHeight+'px';wrap.offsetHeight;}wrap.style.overflow='hidden';wrap.style.maxHeight='0px';}
+addEventListener('click',ev=>{const tb=ev.target.closest('.titlebar.collapsible');if(!tb)return;const id=tb.getAttribute('data-target');const wrap=document.getElementById(id);const open=(!wrap.style.maxHeight||wrap.style.maxHeight==='0px');open?expandWrap(wrap):collapseWrap(wrap);const caret=tb.querySelector('.caret');if(caret)caret.textContent=open?'▼':'▶';});
 
-document.addEventListener('click',(ev)=>{
-  const tb=ev.target.closest('.titlebar.collapsible'); if(!tb) return;
-  const id=tb.getAttribute('data-target'); const wrap=document.getElementById(id); if(!wrap) return;
-  const isClosed = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
-  if(isClosed){ expandWrap(wrap); }
-  else { collapseWrap(wrap); }
-  const caret=tb.querySelector('.caret'); if(caret) caret.textContent = isClosed ? '▼' : '▶';
-});
+// ---- Parsing + Normalization (NO DATES) ----
+function detectDelimiter(text){const first=text.split(/\r?\n/)[0]||'';const c1=(first.match(/,/g)||[]).length;const c2=(first.match(/;/g)||[]).length;return c2>c1?';':',';}
+function normalizeRows(rows){const out=[];rows.forEach(o=>{const Ano=Number(o.Ano||o.ano||o.ANO||0);const Mes=Number(o.Mes||o.mes||o.MES||0);if(!Ano||!Mes)return;const Valor=Number(o.Valor)||0;const Quantidade=Number(o.Quantidade)||0;const Key=`${Ano}-${String(Mes).padStart(2,'0')}`;out.push({Ano,Mes,Valor,Quantidade,Key,Categoria:mapCategoria(o.Descricao||o.Categoria||'')});});out.sort((a,b)=>a.Key.localeCompare(b.Key));return out;}
+function mapCategoria(d){d=(d||'').toUpperCase();if(d.includes('ESCOND')||d.includes('SLIM MV119'))return'Corrediça Oculta';if(d.includes('TRILHO')&&(d.includes('NORMAL')||d.includes('TELE')||d.includes('TEL')))return'Corrediça Telescópica';if(d.includes('DOBRAD'))return'Dobradiças';if(d.includes('PIST')||d.includes('ARTICUL'))return'Articuladores';if(d.includes('RODIZ'))return'Rodízio';if(d.includes('PULSADOR')||d.includes('TIP-ON')||d.includes('TIP ON'))return'Pulsadores';return'Acessórios';}
 
-/* Range Controls */
-let DATA_MIN=null, DATA_MAX=null;
-function applyRangeTo(divId,start,end,key){
-  const gd=document.getElementById(divId); if(!gd) return;
-  Plotly.relayout(gd,{ 'xaxis.range':[start,end] }).then(()=>{ updateMetricsForRange(key,start,end); });
-}
-function quick(divId,keyRange){
-  let start, end=endOfMonth(DATA_MAX);
-  if(keyRange==='3M') start=startOfMonth(addMonths(DATA_MAX,-2));
-  else if(keyRange==='6M') start=startOfMonth(addMonths(DATA_MAX,-5));
-  else if(keyRange==='1A') start=startOfMonth(addMonths(DATA_MAX,-11));
-  else if(keyRange==='5A') start=startOfMonth(addMonths(DATA_MAX,-59));
-  else if(keyRange==='TUDO'){ start=startOfMonth(DATA_MIN); end=endOfMonth(DATA_MAX); }
-  else start=startOfMonth(addMonths(DATA_MAX,-11));
-  const key=divId.replace('chart-','');
-  applyRangeTo(divId,start,end,key);
-}
-function applyCustom(divId,fromId,toId,key){
-  const f=document.getElementById(fromId).value; const t=document.getElementById(toId).value;
-  const d1=ymToDate(f), d2=ymToDate(t); if(!d1||!d2){alert('Selecione mês/ano inicial e final.');return;}
-  applyRangeTo(divId,startOfMonth(d1),endOfMonth(d2),key);
-}
-function resetRange(divId,key){ quick(divId,'1A'); }
-function wireRangeBar(barId){
-  const bar=document.getElementById(barId); if(!bar) return;
-  bar.querySelectorAll('.rbtn[data-range]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      bar.querySelectorAll('.rbtn[data-range]').forEach(x=>x.classList.remove('active'));
-      btn.classList.add('active'); quick(btn.dataset.target, btn.dataset.range);
-    });
-  });
-}
+function aggMonthly(rows){const m=new Map();rows.forEach(r=>{const k=r.Key;if(!m.has(k))m.set(k,{Ano:r.Ano,Mes:r.Mes,Key:k,Valor:0,Quantidade:0});const o=m.get(k);o.Valor+=r.Valor;o.Quantidade+=r.Quantidade;});return Array.from(m.values()).sort((a,b)=>a.Key.localeCompare(b.Key));}
+function aggMonthlyByCat(rows,keys){const cats=[...new Set(rows.map(r=>r.Categoria))];const table={};cats.forEach(c=>table[c]=keys.map(k=>({Key:k,Valor:0,Quantidade:0})));rows.forEach(r=>{const arr=table[r.Categoria];const idx=keys.indexOf(r.Key);if(idx>-1){arr[idx].Valor+=r.Valor;arr[idx].Quantidade+=r.Quantidade;}});return {cats,table};}
 
-/* Metrics */
-function computeMetrics(rows,key='Valor'){
-  const vals=rows.map(r=>r[key]||0).filter(v=>Number.isFinite(v));
-  if(!vals.length) return {varTotal:'—',medMensal:'—',vol:'—'};
-  if(vals.length===1) return {varTotal:'0,0 %', medMensal:key==='Valor'?fmtBRL(vals[0]):Math.round(vals[0]).toLocaleString('pt-BR'), vol:'0,0 %'};
-  const first=vals[0], last=vals[vals.length-1];
-  const varTotal=(first===0)?0:((last-first)/Math.abs(first))*100;
-  const diffs=[]; for(let i=1;i<vals.length;i++) diffs.push((vals[i-1]===0)?0:((vals[i]-vals[i-1])/Math.abs(vals[i-1])*100));
-  const vol=diffs.length?(diffs.reduce((a,b)=>a+Math.abs(b),0)/diffs.length):0;
-  const medMensal=(vals.reduce((a,b)=>a+b,0)/vals.length);
-  return { varTotal:(varTotal).toFixed(1).replace('.',',')+' %', medMensal: key==='Valor'?fmtBRL(medMensal):Math.round(medMensal).toLocaleString('pt-BR'), vol:vol.toFixed(1).replace('.',',')+' %'};
-}
-function updateMetrics(idPrefix,series,key='Valor'){
-  const m=computeMetrics(series,key);
-  document.getElementById(`var-${idPrefix}`).textContent=m.varTotal;
-  document.getElementById(`med-${idPrefix}`).textContent=m.medMensal;
-  document.getElementById(`vol-${idPrefix}`).textContent=m.vol;
-}
-function updateMetricsForRange(sectionKey,start,end){
-  if(sectionKey==='total'){
-    const series=MONTHLY.filter(r=>r.Data>=start&&r.Data<=end);
-    updateMetrics('total',series,'Valor');
-  }else if(sectionKey==='fatlin'){
-    const allDates=MONTHLY_LABELS.map(d=>new Date(d));
-    const inRange=allDates.map(d=>(d>=start&&d<=end));
-    const sums=allDates.map((d,i)=>{ if(!inRange[i]) return 0; let s=0; CAT_ORDER.forEach(cat=>{ const v=(MONTHLY_BY_CAT[cat]||[])[i]?.Valor||0; s+=v;}); return s;});
-    const rows=allDates.map((d,i)=>({Data:d,Valor:sums[i]})).filter((_,i)=>inRange[i]);
-    updateMetrics('fatlin',rows,'Valor');
-  }else if(sectionKey==='vollin'){
-    const allDates=MONTHLY_LABELS.map(d=>new Date(d));
-    const inRange=allDates.map(d=>(d>=start&&d<=end));
-    const sums=allDates.map((d,i)=>{ if(!inRange[i]) return 0; let s=0; CAT_ORDER.forEach(cat=>{ const q=(MONTHLY_BY_CAT[cat]||[])[i]?.Quantidade||0; s+=q;}); return s;});
-    const rows=allDates.map((d,i)=>({Data:d,Quantidade:sums[i]})).filter((_,i)=>inRange[i]);
-    updateMetrics('vollin',rows,'Quantidade');
-  }
-}
+// ---- Category axis layout ----
+function baseLayoutCategory(x,ticktext,yTitleL,yTitleR){const tf=isMobile()?10:12;const lay={hovermode:'x unified',legend:{orientation:'h',y:-0.25,font:{size:isMobile()?11:12}},xaxis:{type:'category',categoryorder:'array',categoryarray:x,tickmode:'array',tickvals:x,ticktext:ticktext,showgrid:false,automargin:true},yaxis:{gridcolor:'#e9ecef',zeroline:false,title:yTitleL,tickfont:{size:tf},automargin:true},paper_bgcolor:'#fff',plot_bgcolor:'#fff',margin:{t:20,r:30,b:80,l:60}};if(yTitleR){lay.yaxis2={title:yTitleR,overlaying:'y',side:'right',tickfont:{size:tf},automargin:true};}return lay;}
+function lineCfg(color){return{type:'scatter',mode:'lines+markers',line:{shape:'spline',smoothing:.6,width:isMobile()?2:3,color},marker:{size:isMobile()?5:7,line:{width:1,color:'#fff'}},cliponaxis:false}};function barCfg(color){return{type:'bar',marker:{color},opacity:.95}};
+function monthLabelsFromMonthly(m){return m.map(x=>`${PT_ABBR[x.Mes-1]} ${String(x.Ano).slice(-2)}`)}
 
-/* Month ticks: explicit list to avoid phantom ticks */
-function monthTicksAll(isoDates){
-  const tickvals=[],ticktext=[];
-  isoDates.forEach(iso=>{ const dt=new Date(iso); tickvals.push(iso); ticktext.push(PT_ABBR[dt.getMonth()]+' '+String(dt.getFullYear()).slice(2,4)); });
-  return {tickvals,ticktext};
-}
+// ---- Range management on categorical axis ----
+let DATA_KEYS=[];let DATA_MIN_KEY=null,DATA_MAX_KEY=null;
+function keyIndex(k){return DATA_KEYS.indexOf(k);} 
+function rangeBySpan(span){const last=DATA_KEYS.length-1;let n={"3M":3,"6M":6,"1A":12,"5A":60,"TUDO":DATA_KEYS.length}[span]||12;let start=Math.max(0,last-n+1);return [DATA_KEYS[start],DATA_KEYS[last]];}
+function relayoutRange(divId,startKey,endKey,sec){Plotly.relayout(divId,{"xaxis.range":[startKey,endKey]}).then(()=>updateMetricsForRange(sec,startKey,endKey));}
+function quick(divId,span){const [s,e]=rangeBySpan(span);relayoutRange(divId,s,e,divId.replace('chart-',''));}
+function applyCustom(divId,fromId,toId,sec){const f=document.getElementById(fromId).value;const t=document.getElementById(toId).value;if(!f||!t)return alert('Selecione mês/ano inicial e final.');const s=`${f.slice(0,4)}-${f.slice(5,7)}`;const e=`${t.slice(0,4)}-${t.slice(5,7)}`;relayoutRange(divId,s,e,sec);} 
+function resetRange(divId,sec){quick(divId,'1A');}
+function wireRangeBar(id){const bar=document.getElementById(id);if(!bar)return;bar.querySelectorAll('.rbtn[data-range]').forEach(btn=>{btn.addEventListener('click',()=>{bar.querySelectorAll('.rbtn[data-range]').forEach(x=>x.classList.remove('active'));btn.classList.add('active');quick(btn.dataset.target,btn.dataset.range);});});}
 
-/* Line/Bar helpers */
-function lineCfg(color,mode='lines+markers'){
-  return {type:'scatter', mode, line:{shape:'spline',smoothing:.6,width:isMobile()?2:3,color}, marker:{size:isMobile()?5:7,line:{width:1,color:'#fff'}}, cliponaxis:false};
-}
-function barCfg(color){ return {type:'bar', marker:{color}, opacity:0.95}; }
-function baseLayout(xTicks,yTitleL,yTitleR=null){
-  const tf=isMobile()?10:12;
-  const lay={
-    hovermode:'x unified',
-    legend:{orientation:'h', y:-0.25, font:{size:isMobile()?11:12}},
-    xaxis:{type:'date', showgrid:false, tickmode:'array', tickvals:xTicks.tickvals, ticktext:xTicks.ticktext, automargin:true, autotick:false},
-    yaxis:{gridcolor:'#e9ecef', zeroline:false, title:yTitleL, tickfont:{size:tf}, automargin:true},
-    paper_bgcolor:'#fff', plot_bgcolor:'#fff',
-    margin:{t:20,r:30,b:80,l:60}
-  };
-  if(yTitleR){ lay.yaxis2={title:yTitleR, overlaying:'y', side:'right', tickfont:{size:tf}, automargin:true}; }
-  return lay;
-}
+// ---- Metrics ----
+function fmtBRL(n){return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function computeMetrics(rows,key){const vals=rows.map(r=>r[key]||0);if(!vals.length)return{var:'—',med:'—',vol:'—'};if(vals.length===1)return{var:'0,0 %',med:key==='Valor'?fmtBRL(vals[0]):Math.round(vals[0]).toLocaleString('pt-BR'),vol:'0,0 %'};const first=vals[0],last=vals[vals.length-1];const vr=(first===0)?0:((last-first)/Math.abs(first))*100;const diffs=[];for(let i=1;i<vals.length;i++)diffs.push((vals[i-1]===0)?0:((vals[i]-vals[i-1])/Math.abs(vals[i-1])*100));const vol=diffs.length?(diffs.reduce((a,b)=>a+Math.abs(b),0)/diffs.length):0;const med=vals.reduce((a,b)=>a+b,0)/vals.length;return{var:vr.toFixed(1).replace('.',',')+' %',med:key==='Valor'?fmtBRL(med):Math.round(med).toLocaleString('pt-BR'),vol:vol.toFixed(1).replace('.',',')+' %'};}
+function updateMetricsForRange(sectionKey,startKey,endKey){const sI=keyIndex(startKey),eI=keyIndex(endKey);if(sI<0||eI<0)return;const slice=(arr)=>arr.filter((_,i)=>i>=sI&&i<=eI);if(sectionKey==='total'){updateMetrics('total',slice(MONTHLY),'Valor');}else if(sectionKey==='fatlin'){const rows=DATA_KEYS.map((k,i)=>{let sum=0;CAT_ORDER.forEach(cat=>sum+=(BY_CAT[cat]||[])[i]?.Valor||0);return {Key:k,Valor:sum};});updateMetrics('fatlin',slice(rows),'Valor');}else if(sectionKey==='vollin'){const rows=DATA_KEYS.map((k,i)=>{let sum=0;CAT_ORDER.forEach(cat=>sum+=(BY_CAT[cat]||[])[i]?.Quantidade||0);return {Key:k,Quantidade:sum};});updateMetrics('vollin',slice(rows),'Quantidade');}}
+function updateMetrics(prefix,rows,key){const m=computeMetrics(rows,key);document.getElementById(`var-${prefix}`).textContent=m.var;document.getElementById(`med-${prefix}`).textContent=m.med;document.getElementById(`vol-${prefix}`).textContent=m.vol;}
 
-/* ---------------------- Data containers ---------------------- */
-let RAW_ROWS=[], MONTHLY=[], MONTHLY_LABELS=[], MONTHLY_BY_CAT={}, CATS=[], CAT_ORDER=[];
-let SHARE_MODE='valor';
+// ---- Data holders ----
+let RAW=[],MONTHLY=[],BY_CAT={},CAT_ORDER=[];let SHARE_MODE='valor';
 
-/* ---------------------- Normalization & aggregation ---------------------- */
-function normalizeRows(rows){
-  const out=[];
-  rows.forEach(o=>{
-    const ano=Number(String(o.Ano||o.ano||o.ANO||"").trim());
-    const mes=Number(String(o.Mes||o.mes||o.MES||"").trim());
-    if(!Number.isFinite(ano)||!Number.isFinite(mes)||mes<1||mes>12) return;
-    out.push({
-      Codigo:(o.Codigo||"").toString().trim(),
-      Descricao:(o.Descricao||"").toString().trim(),
-      Quantidade:Number(o.Quantidade)||0,
-      Valor:Number(o.Valor)||0,
-      Mes:mes, Ano:ano, Data:new Date(ano,mes-1,1), Categoria: mapCategoria(o.Descricao)
-    });
-  });
-  out.sort((a,b)=>(a.Ano-b.Ano)||(a.Mes-b.Mes));
-  if(out.length){ const maxYear=out[out.length-1].Ano; const minAllowed=maxYear-10; return out.filter(r=>r.Ano>=minAllowed && r.Ano<=maxYear);} 
-  return out;
-}
-function mapCategoria(descRaw){
-  const d=(descRaw||"").toUpperCase();
-  if(d.includes('ESCOND')||d.includes('SLIM MV119')) return 'Corrediça Oculta';
-  if(d.includes('TRILHO')&&(d.includes('NORMAL')||d.includes('TELE')||d.includes('TEL'))) return 'Corrediça Telescópica';
-  if(d.includes('DOBRAD')) return 'Dobradiças';
-  if(d.includes('PIST')||d.includes('ARTICUL')) return 'Articuladores';
-  if(d.includes('RODIZ')) return 'Rodízio';
-  if(d.includes('PULSADOR')||d.includes('TIP-ON')||d.includes('TIP ON')) return 'Pulsadores';
-  return 'Acessórios';
-}
-function aggMonthly(rows){
-  const map=new Map();
-  rows.forEach(r=>{ const key=`${r.Ano}-${String(r.Mes).padStart(2,'0')}`; if(!map.has(key)) map.set(key,{Data:new Date(r.Ano,r.Mes-1,1),Valor:0,Quantidade:0}); const m=map.get(key); m.Valor+=r.Valor; m.Quantidade+=r.Quantidade; });
-  const arr=Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
-  return arr.filter(r=>(r.Valor>0 || r.Quantidade>0));
-}
-function buildLabelsFromMonthly(monthly){
-  if(!monthly.length) return [];
-  const firstReal=monthly[0]; const lastReal=monthly[monthly.length-1];
-  const labels=[]; let cur=new Date(firstReal.Data.getFullYear(), firstReal.Data.getMonth(),1);
-  const end=new Date(lastReal.Data.getFullYear(), lastReal.Data.getMonth(),1);
-  while(cur<=end){ labels.push(new Date(cur.getFullYear(),cur.getMonth(),1).toISOString().slice(0,10)); cur=addMonths(cur,1);} 
-  return labels;
-}
-function aggMonthlyByCategoryAligned(rows,labels){
-  const cats=new Set(); const table={};
-  rows.forEach(r=>{ cats.add(r.Categoria); const cat=r.Categoria; const mkey=`${r.Ano}-${String(r.Mes).padStart(2,'0')}`; if(!table[cat]) table[cat]={}; if(!table[cat][mkey]) table[cat][mkey]={Valor:0,Quantidade:0}; table[cat][mkey].Valor+=r.Valor; table[cat][mkey].Quantidade+=r.Quantidade; });
-  const data={}; const lbl=labels.map(iso=>new Date(iso));
-  cats.forEach(cat=>{ const arr=lbl.map(d=>{ const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; const v=table[cat][k]||{Valor:0,Quantidade:0}; return {Data:new Date(d), Valor:v.Valor, Quantidade:v.Quantidade}; }); data[cat]=arr; });
-  return {cats:Array.from(cats), data};
-}
+// ---- Drawers ----
+function drawTotal(){if(!MONTHLY.length)return;const x=MONTHLY.map(r=>r.Key);const ticktext=monthLabelsFromMonthly(MONTHLY);const barsVal={x,y:MONTHLY.map(r=>r.Valor),...barCfg(getComputedStyle(document.documentElement).getPropertyValue('--blue')||'#1e88e5'),name:'Valor (R$)',yaxis:'y',hovertemplate:'<b>Valor:</b> %{customdata.v}<extra></extra>',customdata:MONTHLY.map(r=>({v:fmtBRL(r.Valor)}))};const lineQtd={x,y:MONTHLY.map(r=>r.Quantidade),...lineCfg(getComputedStyle(document.documentElement).getPropertyValue('--orange')||'#fb8c00'),name:'Quantidade (un.)',yaxis:'y2',hovertemplate:'<b>Quantidade:</b> %{customdata.q}<extra></extra>',customdata:MONTHLY.map(r=>({q:Math.round(r.Quantidade).toLocaleString('pt-BR')}))};const layout=baseLayoutCategory(x,ticktext,'Valor (R$)','Quantidade (un.)');Plotly.newPlot('chart-total',[barsVal,lineQtd],layout,{responsive:true});updateMetrics('total',MONTHLY,'Valor');}
+function drawRevenue(){const x=DATA_KEYS;const ticktext=monthLabelsFromMonthly(MONTHLY);const traces=CAT_ORDER.map(cat=>{const s=(BY_CAT[cat]||[]);return {x,y:s.map(r=>r.Valor),...lineCfg(COLORS[cat]||'#666'),name:`${ABBR[cat]||cat} (R$)`,hovertemplate:`<b>${ABBR[cat]||cat}:</b> %{customdata.v}<extra></extra>`,customdata:s.map(r=>({v:fmtBRL(r.Valor)}))};});const layout=baseLayoutCategory(x,ticktext,'Valor (R$)',null);Plotly.newPlot('chart-fatlin',traces,layout,{responsive:true});const rows=x.map((k,i)=>{let sum=0;CAT_ORDER.forEach(cat=>sum+=(BY_CAT[cat]||[])[i]?.Valor||0);return {Key:k,Valor:sum};});updateMetrics('fatlin',rows,'Valor');}
+function drawVolume(){const x=DATA_KEYS;const ticktext=monthLabelsFromMonthly(MONTHLY);const traces=CAT_ORDER.map(cat=>{const s=(BY_CAT[cat]||[]);return {x,y:s.map(r=>r.Quantidade),...lineCfg(COLORS[cat]||'#666'),name:`${ABBR[cat]||cat} (un.)`,hovertemplate:`<b>${ABBR[cat]||cat}:</b> %{customdata.q}<extra></extra>`,customdata:s.map(r=>({q:Math.round(r.Quantidade).toLocaleString('pt-BR')}))};});const layout=baseLayoutCategory(x,ticktext,'Quantidade (un.)',null);Plotly.newPlot('chart-vollin',traces,layout,{responsive:true});const rows=x.map((k,i)=>{let sum=0;CAT_ORDER.forEach(cat=>sum+=(BY_CAT[cat]||[])[i]?.Quantidade||0);return {Key:k,Quantidade:sum};});updateMetrics('vollin',rows,'Quantidade');}
+function setShareMode(m){SHARE_MODE=(m==='quantidade')?'quantidade':'valor';drawShare(true);} 
+function drawShare(skip){const x=DATA_KEYS;const ticktext=monthLabelsFromMonthly(MONTHLY);const denom=x.map((k,i)=>{let s=0;CAT_ORDER.forEach(cat=>{const v=(BY_CAT[cat]||[])[i]||{Valor:0,Quantidade:0};s+=(SHARE_MODE==='valor')?v.Valor:v.Quantidade;});return s>0?s:1;});const traces=CAT_ORDER.map(cat=>{const s=(BY_CAT[cat]||[]);const vals=s.map((r,i)=>{const v=(SHARE_MODE==='valor')?r.Valor:r.Quantidade;return (v/denom[i])*100;});return {x,y:vals,type:'bar',marker:{color:COLORS[cat]||'#666'},name:ABBR[cat]||cat,hovertemplate:`<b>${ABBR[cat]||cat}:</b> %{y:.1f}%<extra></extra>`};});const layout=baseLayoutCategory(x,ticktext,'Participação (%)',null);layout.barmode='stack';layout.yaxis.range=[0,100];layout.hoverlabel={bgcolor:'#000',font:{color:'#fff',size:12},bordercolor:'#f5b95f'};Plotly.newPlot('chart-share',traces,layout,{responsive:true});if(!skip)quick('chart-share','TUDO');}
 
-/* ---------------------- Charts ---------------------- */
-function drawTotal(){
-  if(!MONTHLY.length) return;
-  const x=MONTHLY.map(r=>r.Data.toISOString().slice(0,10));
-  const {tickvals,ticktext}=monthTicksAll(x);
-  const minDate=MONTHLY[0].Data; const maxDate=MONTHLY[MONTHLY.length-1].Data;
+function buildCategoryCards(){const container=document.getElementById('cats-container');container.innerHTML=CAT_ORDER.map(cat=>{const slug=cat.replace(/\s+/g,'-').toLowerCase();return `<div class="section"><div class="titlebar collapsible" data-target="card-${slug}"><span>${cat}</span><span class="caret">▶</span></div><div id="card-${slug}" class="card-wrap" style="max-height:0"><div class="card"><div class="rangebar" id="range-${slug}"><button class="rbtn" data-target="chart-${slug}" data-range="3M">3M</button><button class="rbtn" data-target="chart-${slug}" data-range="6M">6M</button><button class="rbtn" data-target="chart-${slug}" data-range="1A">1A</button><button class="rbtn" data-target="chart-${slug}" data-range="5A">5A</button><button class="rbtn active" data-target="chart-${slug}" data-range="TUDO">Tudo</button><span style="margin-left:8px;">De</span><input type="month" id="from-${slug}"/><span>até</span><input type="month" id="to-${slug}"/><button class="rbtn" onclick="applyCustom('chart-${slug}','from-${slug}','to-${slug}','${slug}')">Aplicar</button><button class="rbtn" onclick="resetRange('chart-${slug}','${slug}')">Reset</button></div><div class="metrics"><div class="metric"><div class="k">Variação total</div><div class="v" id="var-${slug}">—</div></div><div class="metric"><div class="k">Média mensal</div><div class="v" id="med-${slug}">—</div></div><div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-${slug}">—</div></div></div><div class="chart" id="chart-${slug}"></div></div></div></div>`}).join('');
+  container.querySelectorAll('.titlebar.collapsible').forEach(tb=>{tb.addEventListener('click',()=>{const id=tb.getAttribute('data-target');const wrap=document.getElementById(id);const opening=(!wrap.style.maxHeight||wrap.style.maxHeight==='0px');if(opening){expandWrap(wrap);const chartId=id.replace('card-','chart-');drawCategory(chartId);tb.scrollIntoView({behavior:'smooth',block:'start'});}else{collapseWrap(wrap);}const caret=tb.querySelector('.caret');if(caret)caret.textContent=opening?'▼':'▶';});});
+  CAT_ORDER.forEach(cat=>{const slug=cat.replace(/\s+/g,'-').toLowerCase();wireRangeBar(`range-${slug}`);});}
+function drawCategory(chartId){const slug=chartId.replace('chart-','');const proper=CAT_ORDER.find(c=>c.replace(/\s+/g,'-').toLowerCase()===slug);if(!proper)return;const s=BY_CAT[proper]||[];const x=DATA_KEYS;const ticktext=monthLabelsFromMonthly(MONTHLY);const bars={x,y:s.map(r=>r.Quantidade),...barCfg(getComputedStyle(document.documentElement).getPropertyValue('--blue')||'#1e88e5'),name:'Quantidade (un.)',yaxis:'y2',hovertemplate:'<b>Quantidade:</b> %{customdata.q}<extra></extra>',customdata:s.map(r=>({q:Math.round(r.Quantidade).toLocaleString('pt-BR')}))};const line={x,y:s.map(r=>r.Valor),...lineCfg(getComputedStyle(document.documentElement).getPropertyValue('--orange')||'#fb8c00'),name:'Valor (R$)',yaxis:'y',hovertemplate:'<b>Valor:</b> %{customdata.v}<extra></extra>',customdata:s.map(r=>({v:fmtBRL(r.Valor)}))};const layout=baseLayoutCategory(x,ticktext,'Valor (R$)','Quantidade (un.)');Plotly.newPlot(chartId,[bars,line],layout,{responsive:true});const m=computeMetrics(s,'Valor');document.getElementById(`var-${slug}`).textContent=m.var;document.getElementById(`med-${slug}`).textContent=m.med;document.getElementById(`vol-${slug}`).textContent=m.vol;}
 
-  // VISÃO GERAL per request: Valor = BLUE BARS, Quantidade = ORANGE LINE (in front)
-  const barsVal={
-    x, y: MONTHLY.map(r=>r.Valor),
-    ...barCfg('#1e88e5'),
-    name:'Valor (R$)',
-    yaxis:'y',
-    hovertemplate:"<b>Valor:</b> %{customdata.v}<extra></extra>",
-    customdata: MONTHLY.map(r=>({v:fmtBRL(r.Valor)}))
-  };
-  const lineQtd={
-    x, y: MONTHLY.map(r=>r.Quantidade),
-    ...lineCfg('#fb8c00'),
-    name:'Quantidade (un.)',
-    yaxis:'y2',
-    hovertemplate:"<b>Quantidade:</b> %{customdata.q}<extra></extra>",
-    customdata: MONTHLY.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')}))
-  };
-
-  const layout=baseLayout({tickvals,ticktext},"Valor (R$)","Quantidade (un.)");
-  layout.xaxis.autotick=false; layout.xaxis.tickformatstops=[]; layout.xaxis.nticks=tickvals.length;
-  const maxVal=Math.max(...MONTHLY.map(r=>r.Valor),0);
-  if(maxVal>0){ const upper=Math.ceil(maxVal/1_000_000)*1_000_000; layout.yaxis.tick0=0; layout.yaxis.dtick=1_000_000; layout.yaxis.range=[0,Math.max(5_000_000,upper)]; }
-
-  // bars first, line second ensures line is on top
-  Plotly.newPlot('chart-total',[barsVal,lineQtd],layout,{responsive:true}).then(()=> Plotly.relayout('chart-total',{'xaxis.range':[minDate,maxDate]}));
-
-  updateMetrics('total',MONTHLY,'Valor');
-}
-function drawRevenueLines(){
-  const allDates=MONTHLY_LABELS; const {tickvals,ticktext}=monthTicksAll(allDates);
-  const traces=CAT_ORDER.map(cat=>{ const s=MONTHLY_BY_CAT[cat]||[]; return { x:allDates, y:s.map(r=>r.Valor), ...lineCfg(COLORS[cat]||'#666'), name:`${ABR(cat)} (R$)`, yaxis:'y', hovertemplate:`<b>${ABR(cat)}:</b> %{customdata.v}<extra></extra>`, customdata: s.map(r=>({v:fmtBRL(r.Valor)})) }; });
-  const layout=baseLayout({tickvals,ticktext},'Valor (R$)',null);
-  layout.xaxis.autotick=false; layout.xaxis.tickformatstops=[]; layout.xaxis.nticks=tickvals.length;
-  Plotly.newPlot('chart-fatlin',traces,layout,{responsive:true}).then(()=> quick('chart-fatlin','TUDO'));
-  const rows=allDates.map((d,i)=>{ let sum=0; CAT_ORDER.forEach(cat=>{ sum+=(MONTHLY_BY_CAT[cat]||[])[i]?.Valor||0;}); return {Data:new Date(d), Valor:sum}; });
-  updateMetrics('fatlin',rows,'Valor');
-}
-function drawVolumeLines(){
-  const allDates=MONTHLY_LABELS; const {tickvals,ticktext}=monthTicksAll(allDates);
-  const traces=CAT_ORDER.map(cat=>{ const s=MONTHLY_BY_CAT[cat]||[]; return { x:allDates, y:s.map(r=>r.Quantidade), ...lineCfg(COLORS[cat]||'#666'), name:`${ABR(cat)} (un.)`, yaxis:'y', hovertemplate:`<b>${ABR(cat)}:</b> %{customdata.q}<extra></extra>`, customdata: s.map(r=>({q:Math.round(r.Quantidade).toLocaleString('pt-BR')})) }; });
-  const layout=baseLayout({tickvals,ticktext},'Quantidade (un.)',null);
-  layout.xaxis.autotick=false; layout.xaxis.tickformatstops=[]; layout.xaxis.nticks=tickvals.length;
-  Plotly.newPlot('chart-vollin',traces,layout,{responsive:true}).then(()=> quick('chart-vollin','TUDO'));
-  const rows=allDates.map((d,i)=>{ let sum=0; CAT_ORDER.forEach(cat=>{ sum+=(MONTHLY_BY_CAT[cat]||[])[i]?.Quantidade||0;}); return {Data:new Date(d), Quantidade:sum}; });
-  updateMetrics('vollin',rows,'Quantidade');
-}
-function ABR(cat){return ABBR[cat]||cat;}
-function setShareMode(mode){ SHARE_MODE=(mode==='quantidade')?'quantidade':'valor'; drawShare(true); }
-function drawShare(skipRange=false){
-  const allDates=MONTHLY_LABELS; const {tickvals,ticktext}=monthTicksAll(allDates);
-  const denom=allDates.map((d,i)=>{ let s=0; CAT_ORDER.forEach(cat=>{ const v=(MONTHLY_BY_CAT[cat]||[])[i]||{Valor:0,Quantidade:0}; s+=(SHARE_MODE==='valor')?v.Valor:v.Quantidade;}); return s>0?s:1; });
-  const traces=CAT_ORDER.map(cat=>{ const s=MONTHLY_BY_CAT[cat]||[]; const vals=s.map((r,i)=>{ const v=(SHARE_MODE==='valor')?r.Valor:r.Quantidade; return (v/denom[i])*100; }); return { x:allDates, y:vals, type:'bar', marker:{color:COLORS[cat]||'#666'}, name:ABR(cat), hovertemplate:`<b>${ABR(cat)}:</b> %{y:.1f}%<extra></extra>` }; });
-  const layout=baseLayout({tickvals,ticktext},'Participação (%)',null);
-  layout.barmode='stack'; layout.yaxis.range=[0,100]; layout.yaxis.dtick=20;
-  layout.xaxis.autotick=false; layout.xaxis.tickformatstops=[]; layout.xaxis.nticks=tickvals.length;
-  layout.hoverlabel={bgcolor:'#000', font:{color:'#fff', size:12}, bordercolor:'#f5b95f'};
-  Plotly.newPlot('chart-share',traces,layout,{responsive:true}).then(()=>{ if(!skipRange) quick('chart-share','TUDO'); });
-}
-
-/* Per-category cards */
-function buildCategoryCards(containerId){
-  const container=document.getElementById(containerId); const order=CAT_ORDER;
-  container.innerHTML=order.map(cat=>{ const safe=cat.replace(/\s+/g,'-').toLowerCase(); return `
-      <div class="section">
-        <div class="titlebar collapsible" data-target="card-${safe}">
-          <span>${cat}</span><span class="caret">▶</span>
-        </div>
-        <div id="card-${safe}" class="card-wrap" style="max-height:0">
-          <div class="card">
-            <div class="rangebar" id="range-${safe}">
-              <button class="rbtn" data-target="chart-${safe}" data-range="3M">3M</button>
-              <button class="rbtn" data-target="chart-${safe}" data-range="6M">6M</button>
-              <button class="rbtn" data-target="chart-${safe}" data-range="1A">1A</button>
-              <button class="rbtn" data-target="chart-${safe}" data-range="5A">5A</button>
-              <button class="rbtn active" data-target="chart-${safe}" data-range="TUDO">Tudo</button>
-              <span style="margin-left:8px;">De</span>
-              <input type="month" id="from-${safe}"/>
-              <span>até</span>
-              <input type="month" id="to-${safe}"/>
-              <button class="rbtn" onclick="applyCustom('chart-${safe}','from-${safe}','to-${safe}','${safe}')">Aplicar</button>
-              <button class="rbtn" onclick="resetRange('chart-${safe}','${safe}')">Reset</button>
-            </div>
-            <div class="metrics">
-              <div class="metric"><div class="k">Variação total</div><div class="v" id="var-${safe}">—</div></div>
-              <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-${safe}">—</div></div>
-              <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-${safe}">—</div></div>
-            </div>
-            <div class="chart" id="chart-${safe}"></div>
-          </div>
-        </div>
-      </div>
-    `; }).join("");
-
-  container.querySelectorAll('.titlebar.collapsible').forEach(tb=>{
-    tb.addEventListener('click',()=>{
-      const id=tb.getAttribute('data-target'); const wrap=document.getElementById(id);
-      const opening=(!wrap.style.maxHeight||wrap.style.maxHeight==='0px');
-      if(opening){
-        expandWrap(wrap);
-        const chartId=id.replace('card-','chart-');
-        drawCategory(chartId);
-        tb.scrollIntoView({behavior:'smooth',block:'start'});
-      }else{ collapseWrap(wrap); }
-      const caret=tb.querySelector('.caret'); if(caret) caret.textContent=opening?'▼':'▶';
-    });
-  });
-
-  order.forEach(cat=>{ const safe=cat.replace(/\s+/g,'-').toLowerCase(); wireRangeBar(`range-${safe}`); });
-}
-function drawCategory(chartId){
-  const slug=chartId.replace('chart-','');
-  const proper=CAT_ORDER.find(c=>c.replace(/\s+/g,'-').toLowerCase()===slug); if(!proper) return;
-  const series=MONTHLY_BY_CAT[proper]||[]; const x=MONTHLY_LABELS; const {tickvals,ticktext}=monthTicksAll(x);
-  const barsQtd={ x, y: series.map(r=>r.Quantidade), ...barCfg('#1e88e5'), name:'Quantidade (un.)', yaxis:'y2', hovertemplate:"<b>Quantidade:</b> %{customdata.q}<extra></extra>", customdata: series.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')})) };
-  const lineVal={ x, y: series.map(r=>r.Valor), ...lineCfg('#fb8c00'), name:'Valor (R$)', yaxis:'y', hovertemplate:"<b>Valor:</b> %{customdata.v}<extra></extra>", customdata: series.map(r=>({v: fmtBRL(r.Valor)})) };
-  const layout=baseLayout({tickvals,ticktext},'Valor (R$)','Quantidade (un.)');
-  layout.xaxis.autotick=false; layout.xaxis.tickformatstops=[]; layout.xaxis.nticks=tickvals.length;
-  Plotly.newPlot(chartId,[barsQtd,lineVal],layout,{responsive:true}).then(()=> quick(chartId,'TUDO'));
-  const m=computeMetrics(series,'Valor'); document.getElementById(`var-${slug}`).textContent=m.varTotal; document.getElementById(`med-${slug}`).textContent=m.medMensal; document.getElementById(`vol-${slug}`).textContent=m.vol;
-}
-
-/* ---------------------- Boot ---------------------- */
-async function initDashboard(){
-  const overlay=document.getElementById('loading-overlay');
+// ---- Boot ----
+async function init(){
   try{
-    const CSV_URL=new URL('data/relatorio_faturamento.csv',window.location.href).toString();
-    const res=await fetch(CSV_URL+'?v='+Date.now(),{cache:'no-store'});
-    if(!res.ok){ overlay.querySelector('.loading-text').textContent='Erro ao carregar dados (CSV não encontrado).'; return; }
-    const text=await res.text(); if(!text||text.trim().length===0){ overlay.querySelector('.loading-text').textContent='Erro ao carregar dados (CSV vazio).'; return; }
-    const parsed=Papa.parse(text,{header:true,skipEmptyLines:true}); if(!parsed.data||!parsed.data.length){ overlay.querySelector('.loading-text').textContent='Erro ao carregar dados (formato inválido).'; return; }
+    const url=new URL('data/relatorio_faturamento.csv',location.href).toString();
+    const res=await fetch(url+'?v='+Date.now(),{cache:'no-store'});if(!res.ok)throw new Error('CSV não encontrado');
+    const text=await res.text();const delimiter=detectDelimiter(text);const parsed=Papa.parse(text,{header:true,skipEmptyLines:true,delimiter});
+    RAW=normalizeRows(parsed.data);
+    const monthly=aggMonthly(RAW);MONTHLY=monthly;DATA_KEYS=monthly.map(m=>m.Key);DATA_MIN_KEY=DATA_KEYS[0];DATA_MAX_KEY=DATA_KEYS[DATA_KEYS.length-1];
+    const bycat=aggMonthlyByCat(RAW,DATA_KEYS);BY_CAT=bycat.table;const MAIN=["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores"];const others=bycat.cats.filter(c=>!MAIN.includes(c)&&c!=="Acessórios");CAT_ORDER=[...MAIN.filter(c=>bycat.cats.includes(c)),...(bycat.cats.includes('Acessórios')?["Acessórios"]:[]),...others];
+    const last=MONTHLY[MONTHLY.length-1];document.getElementById('updated').textContent='Atualizado: '+PT_ABBR[last.Mes-1]+'/'+last.Ano;
 
-    RAW_ROWS=normalizeRows(parsed.data);
-    MONTHLY=aggMonthly(RAW_ROWS);
-    MONTHLY=MONTHLY.filter(r=>r.Data.getFullYear()>=2025);
-    MONTHLY_LABELS=buildLabelsFromMonthly(MONTHLY);
-
-    const bycat=aggMonthlyByCategoryAligned(RAW_ROWS,MONTHLY_LABELS);
-    CATS=bycat.cats;
-    const mainSet=["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores"];
-    const others=CATS.filter(c=>!mainSet.includes(c)&&c!=="Acessórios");
-    CAT_ORDER=[...mainSet.filter(c=>CATS.includes(c)), ...(CATS.includes('Acessórios')?["Acessórios"]:[]), ...others];
-    MONTHLY_BY_CAT=bycat.data;
-
-    const lastIso=MONTHLY_LABELS[MONTHLY_LABELS.length-1]; const maxD=new Date(lastIso);
-    document.getElementById('updated').textContent='Atualizado: '+PT_ABBR[maxD.getMonth()]+'/'+maxD.getFullYear();
-
-    DATA_MIN=new Date(MONTHLY_LABELS[0]); DATA_MAX=new Date(MONTHLY_LABELS[MONTHLY_LABELS.length-1]);
-
-    // Draw sections
     drawTotal();
-    drawRevenueLines();
-    drawVolumeLines();
+    drawRevenue();
+    drawVolume();
     drawShare(false);
-    buildCategoryCards('cats-container');
-
-    // Wire range bars
+    buildCategoryCards();
     ['range-total','range-fatlin','range-vollin','range-share'].forEach(wireRangeBar);
-
-    // Hide overlay
-    setTimeout(()=> overlay.classList.add('hidden'), 250);
-  }catch(err){ console.error(err); document.getElementById('loading-overlay').querySelector('.loading-text').textContent='Erro ao carregar dados (ver console).'; }
+  }catch(e){console.error(e);document.querySelector('.loading-text').textContent='Erro ao carregar dados (ver console).';}
+  setTimeout(()=>document.getElementById('loading-overlay').classList.add('hidden'),200);
 }
-
-document.addEventListener('DOMContentLoaded', initDashboard);
+addEventListener('DOMContentLoaded',init);
 </script>
 </body>
 </html>
