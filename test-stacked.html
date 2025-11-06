@@ -57,17 +57,6 @@ const PALETTES = {
 let DATA_RAW = [], MONTHLY_BY_LINE = {}, MONTH_LABELS = [];
 let CURRENT_MODE = "Valor", CURRENT_PALETTE = "desert";
 
-function mapCategoria(desc){
-  const d = (desc || "").toUpperCase();
-  if(d.includes("ESCOND") || d.includes("SLIM MV119")) return "Corrediça Oculta";
-  if(d.includes("TRILHO") && (d.includes("NORMAL") || d.includes("TELE") || d.includes("TEL"))) return "Corrediça Telescópica";
-  if(d.includes("DOBRAD")) return "Dobradiças";
-  if(d.includes("PIST") || d.includes("ARTICUL")) return "Articuladores";
-  if(d.includes("RODIZ")) return "Rodízio";
-  if(d.includes("PULSADOR") || d.includes("TIP-ON") || d.includes("TIP ON")) return "Pulsadores";
-  return "Acessórios";
-}
-
 function normalizeRows(rows){
   const out = [];
   rows.forEach(o => {
