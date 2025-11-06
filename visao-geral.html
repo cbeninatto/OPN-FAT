@@ -148,7 +148,16 @@ function drawChart(monthly){
   Plotly.react("chart",[bars,line],{
     hovermode:'x unified',
     xaxis:{type:'category',categoryorder:'array',categoryarray:x,tickmode:'array',tickvals:x,ticktext:ticks,showgrid:false},
-    yaxis:{title:'Faturamento (R$)',gridcolor:'#e9ecef',autorange:true},
+    yaxis:{
+  title:'Faturamento (R$)',
+  gridcolor:'#e9ecef',
+  tickformat: ',.0f',
+  tickprefix:'R$ ',
+  tick0:0,
+  dtick:1000000,        // 🧭 step of 1M
+  range:[0,5000000],    // 🧭 top = 5M
+  fixedrange:false
+},
     yaxis2:{title:'Volume (un.)',overlaying:'y',side:'right',autorange:true},
     legend:{orientation:'h',y:-0.25},
     paper_bgcolor:'#fff',plot_bgcolor:'#fff',margin:{t:30,r:50,b:80,l:64}
