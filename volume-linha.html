@@ -1,0 +1,121 @@
+<!-- volume-linha.html | v1.0 | Visão por Linha (Faturamento / Volume) -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Openfield Moveleiro — Visão por Linha</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<style>
+:root{--bg:#dfe1e1;--card:#fff;--text:#000;--accent:#f5b95f;--accent-b:#e5be74;--shadow:0 3px 10px rgba(0,0,0,.08);}
+body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text);}
+.wrap{max-width:1400px;margin:0 auto;padding:18px 16px 56px;}
+.topbar{background:#000;color:#fff;border-bottom:4px solid var(--accent);padding:12px 16px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;}
+.titlebar{background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;font-weight:700;border-left:6px solid var(--accent);}
+.card{background:var(--card);border-radius:0 0 10px 10px;box-shadow:var(--shadow);padding:14px;}
+.rangebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;}
+.rbtn{background:var(--accent);color:#000;border:1px solid var(--accent-b);padding:6px 12px;border-radius:10px;font-weight:600;cursor:pointer;font-size:14px;}
+.rbtn:hover,.rbtn.active{background:#000;color:#fff;border-color:#000;}
+.chart{width:100%;height:520px;}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0;}
+.metric{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:8px 10px;}
+.metric .k{font-size:.85rem;color:#444;}
+.metric .v{font-weight:700;font-size:1.05rem;}
+@media(max-width:720px){.chart{height:460px}.metrics{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div><strong>OPENFIELD MOVELEIRO</strong> — Visão por Linha</div>
+    <div id="updated" style="opacity:.9">Atualizado: —</div>
+  </div>
+
+  <div class="section">
+    <div class="titlebar">📊 Visão por Linha</div>
+    <div class="card">
+      <div class="rangebar" id="range-visao">
+        <button class="rbtn" id="btn-faturamento" onclick="toggleMode('faturamento')">Faturamento</button>
+        <button class="rbtn" id="btn-volume" onclick="toggleMode('volume')">Volume</button>
+        <button class="rbtn" data-range="3M">3M</button>
+        <button class="rbtn" data-range="6M">6M</button>
+        <button class="rbtn" data-range="1A">1A</button>
+        <button class="rbtn active" data-range="TUDO">Tudo</button>
+      </div>
+      <div class="metrics" id="metrics-visao">
+        <div class="metric"><div class="k">Variação total</div><div class="v" id="var-visao">—</div></div>
+        <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-visao">—</div></div>
+        <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-visao">—</div></div>
+      </div>
+      <div class="chart" id="chart-visao"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+const COLORS={"Corrediça Oculta":"#d64b4b","Corrediça Telescópica":"#f57c00","Dobradiças":"#fdd835","Articuladores":"#81c784","Rodízio":"#4db6ac","Pulsadores":"#9575cd","Acessórios":"#bcaaa4"};
+let MODE='faturamento',RAW=[],MONTHLY=[],BY_CAT={},CAT_ORDER=[],DATA_KEYS=[];
+
+function detectDelimiter(t){const f=t.split(/\r?\n/)[0]||'';const c1=(f.match(/,/g)||[]).length;const c2=(f.match(/;/g)||[]).length;return c2>c1?';':',';}
+function mapCategoria(d){d=(d||'').toUpperCase();if(d.includes('ESCOND')||d.includes('SLIM MV119'))return'Corrediça Oculta';
+if(d.includes('TRILHO')&&(d.includes('NORMAL')||d.includes('TELE')||d.includes('TEL')))return'Corrediça Telescópica';
+if(d.includes('DOBRAD'))return'Dobradiças';if(d.includes('PIST')||d.includes('ARTICUL'))return'Articuladores';
+if(d.includes('RODIZ'))return'Rodízio';if(d.includes('PULSADOR')||d.includes('TIP-ON'))return'Pulsadores';return'Acessórios';}
+function normalizeRows(rows){const out=[];rows.forEach(o=>{const Ano=+o.Ano||0,Mes=+o.Mes||0;if(!Ano||!Mes)return;
+const Valor=+o.Valor||0,Quantidade=+o.Quantidade||0;const Key=`${Ano}-${String(Mes).padStart(2,'0')}`;
+out.push({Ano,Mes,Valor,Quantidade,Key,Categoria:mapCategoria(o.Descricao||o.Categoria||'')});});
+out.sort((a,b)=>a.Key.localeCompare(b.Key));return out;}
+function aggMonthlyByCat(rows,keys){const cats=[...new Set(rows.map(r=>r.Categoria))];const table={};cats.forEach(c=>table[c]=keys.map(k=>({Key:k,Valor:0,Quantidade:0})));
+rows.forEach(r=>{const arr=table[r.Categoria];const idx=keys.indexOf(r.Key);if(idx>-1){arr[idx].Valor+=r.Valor;arr[idx].Quantidade+=r.Quantidade;}});return {cats,table};}
+function monthLabelsFromMonthly(m){return m.map(x=>`${PT_ABBR[x.Mes-1]} ${String(x.Ano).slice(-2)}`);}
+function fmtBRL(n){return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function computeMetrics(rows,key){const vals=rows.map(r=>r[key]||0);if(!vals.length)return{var:'—',med:'—',vol:'—'};
+const first=vals[0],last=vals.at(-1);const vr=(first===0)?0:((last-first)/Math.abs(first))*100;
+const diffs=[];for(let i=1;i<vals.length;i++)diffs.push((vals[i-1]===0)?0:((vals[i]-vals[i-1])/Math.abs(vals[i-1])*100));
+const vol=diffs.length?(diffs.reduce((a,b)=>a+Math.abs(b),0)/diffs.length):0;
+const med=vals.reduce((a,b)=>a+b,0)/vals.length;
+return{var:vr.toFixed(1).replace('.',',')+' %',med:key==='Valor'?fmtBRL(med):Math.round(med).toLocaleString('pt-BR'),vol:vol.toFixed(1).replace('.',',')+' %'};}
+function updateMetrics(rows,key){const m=computeMetrics(rows,key);document.getElementById('var-visao').textContent=m.var;document.getElementById('med-visao').textContent=m.med;document.getElementById('vol-visao').textContent=m.vol;}
+function baseLayout(x,ticktext,yTitle){return{hovermode:'x unified',legend:{orientation:'h',y:-0.25},xaxis:{type:'category',categoryorder:'array',categoryarray:x,tickvals:x,ticktext:ticktext},yaxis:{title:yTitle,gridcolor:'#e9ecef',zeroline:false},paper_bgcolor:'#fff',plot_bgcolor:'#fff',margin:{t:20,r:20,b:80,l:60}};}
+function lineCfg(c){return{type:'scatter',mode:'lines+markers',line:{shape:'spline',smoothing:.6,width:3,color:c},marker:{size:7,line:{width:1,color:'#fff'}},cliponaxis:false};}
+
+function drawVisao(){
+ const x=DATA_KEYS,ticktext=monthLabelsFromMonthly(MONTHLY);
+ const traces=CAT_ORDER.map(cat=>{
+   const s=BY_CAT[cat]||[];
+   return {x:x,y:s.map(r=>r[MODE==='faturamento'?'Valor':'Quantidade']),
+     ...lineCfg(COLORS[cat]||'#666'),
+     name:cat,
+     hovertemplate:`<b>${cat}</b><br>${MODE==='faturamento'?'R$ %{y:,.2f}':'%{y:,.0f} un.'}<extra></extra>`};
+ });
+ const layout=baseLayout(x,ticktext,MODE==='faturamento'?'Faturamento (R$)':'Volume (un.)');
+ Plotly.newPlot('chart-visao',traces,layout,{responsive:true});
+ const rows=x.map((k,i)=>{let sum=0;CAT_ORDER.forEach(cat=>sum+=(BY_CAT[cat]||[])[i]?.[MODE==='faturamento'?'Valor':'Quantidade']||0);return{Key:k,[MODE==='faturamento'?'Valor':'Quantidade']:sum};});
+ updateMetrics(rows,MODE==='faturamento'?'Valor':'Quantidade');
+}
+
+function toggleMode(m){
+  MODE=m;
+  document.getElementById('btn-faturamento').classList.toggle('active',m==='faturamento');
+  document.getElementById('btn-volume').classList.toggle('active',m==='volume');
+  drawVisao();
+}
+
+async function init(){
+  const res=await fetch('data/relatorio_faturamento.csv?v='+Date.now());
+  const txt=await res.text();const delim=detectDelimiter(txt);
+  const parsed=Papa.parse(txt,{header:true,skipEmptyLines:true,delimiter:delim});
+  RAW=normalizeRows(parsed.data);
+  const keys=[...new Set(RAW.map(r=>r.Key))].sort();DATA_KEYS=keys;
+  MONTHLY=keys.map(k=>{const r=RAW.find(x=>x.Key===k);return{Ano:r.Ano,Mes:r.Mes};});
+  const bycat=aggMonthlyByCat(RAW,keys);BY_CAT=bycat.table;CAT_ORDER=bycat.cats;
+  const last=RAW.at(-1);document.getElementById('updated').textContent='Atualizado: '+PT_ABBR[last.Mes-1]+'/'+last.Ano;
+  toggleMode('faturamento');
+}
+init();
+</script>
+</body>
+</html>
