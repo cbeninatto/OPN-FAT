@@ -3,8 +3,14 @@ function init(){
   Papa.parse(CSV_URL, {
     download: true,
     header: true,
-    delimiter: "\t", // ✅ important: your CSV uses tabs
     skipEmptyLines: true,
+    // ✅ Auto-detect tab or comma separator
+    beforeFirstChunk: function(chunk){
+      const firstLine = chunk.split(/\r?\n/)[0];
+      if (firstLine.includes("\t")) this.delimiter = "\t";
+      else this.delimiter = ",";
+      return chunk;
+    },
     complete: (res)=>{
       const rows = res.data || [];
       rawRows = normalizeRows(rows);
@@ -12,6 +18,7 @@ function init(){
         document.getElementById("cats-container").innerHTML = "<p>CSV sem dados.</p>";
         return;
       }
+
       monthKeys = computeMonthKeys(rawRows);
       minKey = monthKeys[0];
       maxKey = monthKeys[monthKeys.length-1];
@@ -20,12 +27,13 @@ function init(){
       buildCategoryCards("cats-container", CATEGORIES);
       applyFiltersAndRender();
     },
-    error: (err)=> {
+    error: (err)=>{
       document.getElementById("cats-container").innerHTML = "<p>Erro ao carregar CSV.</p>";
       console.error(err);
     }
   });
 
+  // events
   applyBtn.addEventListener("click", applyFiltersAndRender);
   metricSel.addEventListener("change", applyFiltersAndRender);
   window.addEventListener("resize", ()=>{
